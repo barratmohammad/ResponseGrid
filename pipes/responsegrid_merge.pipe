@@ -1,0 +1,100 @@
+{
+  "name": "ResponseGrid (merge wave)",
+  "description": "Incident Commander merges the specialists' findings into one plan.",
+  "version": 1,
+  "source": "incident_feed",
+  "components": [
+    {
+      "id": "incident_feed",
+      "provider": "webhook",
+      "name": "Incident feed",
+      "config": {
+        "type": "webhook",
+        "mode": "Source",
+        "hideForm": true,
+        "parameters": {}
+      }
+    },
+    {
+      "id": "incident_commander",
+      "provider": "agent_rocketride",
+      "name": "INCIDENT COMMANDER",
+      "config": {
+        "agent_description": "Merges specialist findings into one incident command plan",
+        "instructions": [
+          "You are the Incident Commander of an emergency response system. You receive JSON findings from five specialists: hazard, evacuation, medical, infrastructure, logistics.",
+          "Merge them into ONE coordinated plan. Your job is coordination, not restating them.",
+          "Find CONFLICTS where two domains need the same scarce resource or recommend opposing actions, and resolve each with an explicit call and a reason.",
+          "Rank immediate actions by life-safety first, then containment, then property.",
+          "If a specialist is missing or unparseable, proceed with the rest and list it in degraded_agents. Never invent findings for a missing specialist.",
+          "All data is SIMULATED for an exercise. Reply with ONE JSON object, no prose, no fences. Be terse: at most 6 immediate_actions, one short sentence each.",
+          "Return exactly: {\"incident_status\":\"critical|severe|elevated|stable\",\"executive_summary\":\"2-3 sentences\",\"immediate_actions\":[{\"rank\":0,\"action\":\"\",\"owner\":\"\",\"why\":\"\"}],\"evacuation_actions\":[\"\"],\"medical_actions\":[\"\"],\"infrastructure_actions\":[\"\"],\"logistics_actions\":[\"\"],\"resource_conflicts\":[{\"resource\":\"\",\"contenders\":\"\",\"resolution\":\"\",\"rationale\":\"\"}],\"critical_dependencies\":[{\"depends_on\":\"\",\"blocks\":\"\"}],\"unresolved_risks\":[\"\"],\"agent_consensus\":\"aligned|minor_conflicts|major_conflicts\"}"
+        ],
+        "max_waves": 1,
+        "agent_rocketride": {
+          "profile": "default"
+        },
+        "parameters": {}
+      },
+      "input": [
+        {
+          "lane": "questions",
+          "from": "incident_feed"
+        }
+      ]
+    },
+    {
+      "id": "llm_incident_commander",
+      "provider": "llm_anthropic",
+      "name": "Claude (claude-sonnet-4-6)",
+      "config": {
+        "profile": "claude-sonnet-4-6",
+        "claude-sonnet-4-6": {
+          "apikey": "${ANTHROPIC_API_KEY}"
+        },
+        "apikey": "${ANTHROPIC_API_KEY}",
+        "parameters": {}
+      },
+      "control": [
+        {
+          "classType": "llm",
+          "from": "incident_commander"
+        }
+      ]
+    },
+    {
+      "id": "mem_incident_commander",
+      "provider": "memory_internal",
+      "config": {
+        "type": "memory_internal",
+        "parameters": {}
+      },
+      "control": [
+        {
+          "classType": "memory",
+          "from": "incident_commander"
+        }
+      ]
+    },
+    {
+      "id": "plan_out",
+      "provider": "response",
+      "name": "Incident Command Plan",
+      "config": {
+        "laneName": "plan",
+        "parameters": {}
+      },
+      "input": [
+        {
+          "lane": "answers",
+          "from": "incident_commander"
+        }
+      ]
+    }
+  ],
+  "viewport": {
+    "x": 0,
+    "y": 0,
+    "zoom": 1
+  }
+}

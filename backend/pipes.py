@@ -29,15 +29,26 @@ RESPONSE_ID = "plan_out"
 PLAN_LANE = "plan"
 
 
-def _llm(node_id: str, owner: str, profile: str) -> dict:
-    """An Anthropic node bound as the `llm` channel of `owner`."""
+KEY_PLACEHOLDER = "${ANTHROPIC_API_KEY}"
+
+
+def _llm(node_id: str, owner: str, profile: str, apikey: str | None = None) -> dict:
+    """An Anthropic node bound as the `llm` channel of `owner`.
+
+    The engine does NOT expand ${VAR} in pipe config (that is a CLI/extension
+    feature), so a placeholder reaches the node verbatim and fails its `sk-ant`
+    format check. We therefore inject the real key when building the pipe we
+    execute, and keep the placeholder in the reference .pipe files we publish.
+    """
+    key = apikey or KEY_PLACEHOLDER
     return {
         "id": node_id, "provider": "llm_anthropic",
         "name": f"Claude ({profile})",
+        # key nests under the profile name (verified against a real upstream pipe);
+        # the flat form is set too since builds differ on which they read.
         "config": {"profile": profile,
-                   # key nests under the profile name (verified against a real pipe)
-                   profile: {"apikey": "${ANTHROPIC_API_KEY}"},
-                   "apikey": "${ANTHROPIC_API_KEY}",
+                   profile: {"apikey": key},
+                   "apikey": key,
                    "parameters": {}},
         "control": [{"classType": "llm", "from": owner}],
     }
@@ -49,39 +60,40 @@ def _memory(node_id: str, owner: str) -> dict:
             "control": [{"classType": "memory", "from": owner}]}
 
 
-def _hotdata(node_id: str, owner: str, database_id: str, table_hint: str) -> dict:
+def _hotdata(node_id: str, owner: str, database_id: str, table_hint: str,
+             hd_key: str | None = None, hd_ws: str | None = None) -> dict:
     """Per-agent Hotdata database, bound as a `tool` of `owner`.
 
-    database_id is supplied by us, so the node ATTACHES rather than creating its
-    own -- and an attached database is never deleted by the node. Our backend owns
-    create -> load -> destroy so the lifecycle is explicit and observable.
+    Config keys are UNPREFIXED. The node declares its fields as `hotdata.*` for
+    the UI form, but the engine strips that namespace before handing the dict to
+    the node -- its source reads cfg.get('apikey'), cfg.get('database_id'), etc.
+    Writing `hotdata.database_id` therefore leaves database_id empty, and the node
+    silently provisions its OWN throwaway database instead of attaching to ours.
+
+    Supplying database_id makes the node ATTACH, and an attached database is never
+    deleted by the node -- our backend owns create -> load -> destroy.
+    allow_execute lets the agent run raw read-only SQL (the SQL surface rejects
+    writes regardless; this gate only guards expensive scans).
     """
     cfg = {
         "profile": "default",
-        # nested form
-        "hotdata": {
-            "apikey": "${HOTDATA_API_KEY}", "workspace_id": "${HOTDATA_WORKSPACE_ID}",
-            "database_id": database_id, "allow_execute": True,
-            "allow_destructive_load": False, "db_description": table_hint,
-            "max_execute_rows": 2000, "job_timeout_secs": 60, "max_attempts": 2,
-        },
-        # flat dotted form (the node declares its fields this way)
-        "hotdata.apikey": "${HOTDATA_API_KEY}",
-        "hotdata.workspace_id": "${HOTDATA_WORKSPACE_ID}",
-        "hotdata.database_id": database_id,
-        "hotdata.allow_execute": True,
-        "hotdata.allow_destructive_load": False,
-        "hotdata.db_description": table_hint,
-        "hotdata.max_execute_rows": 2000,
-        "hotdata.job_timeout_secs": 60,
-        "hotdata.max_attempts": 2,
+        "apikey": hd_key or "${HOTDATA_API_KEY}",
+        "workspace_id": hd_ws or "${HOTDATA_WORKSPACE_ID}",
+        "database_id": database_id,
+        "allow_execute": True,
+        "allow_destructive_load": False,
+        "db_description": table_hint,
+        "max_execute_rows": 2000,
+        "job_timeout_secs": 60,
+        "max_attempts": 2,
         "parameters": {},
     }
     return {"id": node_id, "provider": "db_hotdata", "name": f"Hotdata {owner}",
             "config": cfg, "control": [{"classType": "tool", "from": owner}]}
 
 
-def _specialist(agent_id: str, database_id: str, inputs: list[dict]) -> list[dict]:
+def _specialist(agent_id: str, database_id: str, inputs: list[dict],
+                secrets: dict | None = None) -> list[dict]:
     a = AGENTS[agent_id]
     hint = (f"Tables in default.main: {', '.join(a.tables)}. "
             f"All rows are simulated exercise data. Domain: {a.domain}.")
@@ -94,23 +106,31 @@ def _specialist(agent_id: str, database_id: str, inputs: list[dict]) -> list[dic
                     "agent_rocketride": {"profile": "default"},
                     "parameters": {}},
          "input": inputs},
-        _llm(f"llm_{agent_id}", agent_id, config.SPECIALIST_PROFILE),
+        _llm(f"llm_{agent_id}", agent_id, config.SPECIALIST_PROFILE, (secrets or {}).get("anthropic")),
         _memory(f"mem_{agent_id}", agent_id),
-        _hotdata(f"hd_{agent_id}", agent_id, database_id, hint),
+        _hotdata(f"hd_{agent_id}", agent_id, database_id, hint,
+                 (secrets or {}).get("hotdata_key"), (secrets or {}).get("hotdata_ws")),
     ]
 
 
-def _commander(inputs: list[dict]) -> list[dict]:
+def _commander(inputs: list[dict], secrets: dict | None = None,
+               findings_block: str | None = None) -> list[dict]:
     return [
         {"id": COMMANDER_ID, "provider": "agent_rocketride",
          "name": "INCIDENT COMMANDER",
          "config": {"agent_description": "Merges specialist findings into one incident command plan",
-                    "instructions": COMMANDER_INSTRUCTIONS,
+                    # The findings ride in `instructions` rather than on the questions
+                    # lane: lane data does not reach an agent as its query, so a
+                    # commander fed that way reports "no findings received" and
+                    # invents conflicts. instructions is config and always arrives.
+                    "instructions": (COMMANDER_INSTRUCTIONS + [findings_block]
+                                     if findings_block else COMMANDER_INSTRUCTIONS),
                     "max_waves": 1,          # pure synthesis: one pass, no tool loop
                     "agent_rocketride": {"profile": "default"},
                     "parameters": {}},
          "input": inputs},
-        _llm(f"llm_{COMMANDER_ID}", COMMANDER_ID, config.COMMANDER_PROFILE),
+        _llm(f"llm_{COMMANDER_ID}", COMMANDER_ID, config.COMMANDER_PROFILE,
+             (secrets or {}).get("anthropic")),
         _memory(f"mem_{COMMANDER_ID}", COMMANDER_ID),
     ]
 
@@ -129,37 +149,49 @@ def _response(from_id: str, lane_name: str, node_id: str, label: str) -> dict:
             "input": [{"lane": "answers", "from": from_id}]}
 
 
-def build(mode: str, db_ids: dict[str, str], agent_ids: list[str] | None = None) -> dict:
+def build(mode: str, db_ids: dict[str, str], agent_ids: list[str] | None = None,
+          secrets: dict | None = None) -> dict:
     """mode: 'parallel' | 'sequential'. db_ids maps agent_id -> Hotdata database id."""
     ids = agent_ids or ORDER
+    if secrets is None:
+        secrets = {"anthropic": config.ANTHROPIC_API_KEY or None,
+                   "hotdata_key": config.HOTDATA_API_KEY or None,
+                   "hotdata_ws": config.HOTDATA_WORKSPACE_ID or None}
     comps: list[dict] = [_source()]
 
+    _ = fan_in_unused = None
     if mode == "parallel":
         # Every specialist reads the source directly => independent branches the
         # engine runs concurrently across threads.
         for aid in ids:
-            comps += _specialist(aid, db_ids.get(aid, ""), [{"lane": "questions", "from": SOURCE_ID}])
-        fan_in = [{"lane": "answers", "from": aid} for aid in ids]
+            comps += _specialist(aid, db_ids.get(aid, ""), [{"lane": "questions", "from": SOURCE_ID}], secrets)
+        pass
     elif mode == "sequential":
         # Each specialist consumes the previous one's answers => strictly serial.
         prev, prev_lane = SOURCE_ID, "questions"
         for aid in ids:
-            comps += _specialist(aid, db_ids.get(aid, ""), [{"lane": prev_lane, "from": prev}])
+            comps += _specialist(aid, db_ids.get(aid, ""), [{"lane": prev_lane, "from": prev}], secrets)
             prev, prev_lane = aid, "answers"
-        fan_in = [{"lane": "answers", "from": ids[-1]}]
+        pass
     else:
         raise ValueError(f"unknown mode {mode!r}")
 
-    comps += _commander(fan_in)
-    # One sink per specialist so their raw JSON comes back alongside the plan.
+    # One sink per specialist. The commander is NOT in this graph: an agent node
+    # processes each arriving object independently, so a 5-way fan-in makes it run
+    # five times and the last answer wins. The merge is its own wave (build_merge).
     for aid in ids:
         comps.append(_response(aid, aid, f"out_{aid}", f"{AGENTS[aid].label} result"))
-    comps.append(_response(COMMANDER_ID, PLAN_LANE, RESPONSE_ID, "Incident Command Plan"))
     return {
         "name": f"ResponseGrid ({mode})",
-        "description": ("Parallel" if mode == "parallel" else "Sequential")
-                       + " emergency incident command: 5 specialists, each with its own "
-                         "Hotdata database, merged by an incident commander.",
+        "description": (
+            ("Parallel emergency incident command: 5 specialists run as independent "
+             "branches, each with its own Hotdata database, merged by an incident "
+             "commander (see responsegrid_merge.pipe).")
+            if mode == "parallel" else
+            ("Chained variant kept for reference only. NOT the benchmark baseline: an "
+             "agent fed the previous agent's answers lane does not treat that data as "
+             "its query and no-ops, so the real baseline runs the single-agent parallel "
+             "graph once per specialist, serially. See README.")),
         "version": 1,
         "source": SOURCE_ID,
         "components": comps,
@@ -172,10 +204,14 @@ def write_reference_pipes() -> list[Path]:
     PIPE_DIR.mkdir(exist_ok=True)
     out = []
     placeholder = {a: f"${{HOTDATA_DB_{a.upper()}}}" for a in ORDER}
+    redacted: dict = {}          # -> placeholders, so no key is ever written to disk
     for mode in ("parallel", "sequential"):
         p = PIPE_DIR / f"responsegrid_{mode}.pipe"
-        p.write_text(json.dumps(build(mode, placeholder), indent=2) + "\n")
+        p.write_text(json.dumps(build(mode, placeholder, secrets=redacted), indent=2) + "\n")
         out.append(p)
+    p = PIPE_DIR / "responsegrid_merge.pipe"
+    p.write_text(json.dumps(build_merge(secrets=redacted), indent=2) + "\n")
+    out.append(p)
     return out
 
 
@@ -183,3 +219,29 @@ if __name__ == "__main__":
     for p in write_reference_pipes():
         d = json.loads(p.read_text())
         print(f"{p.name:34} components={len(d['components']):3d} source={d['source']}")
+
+
+def build_merge(findings: dict | list | None = None,
+                secrets: dict | None = None) -> dict:
+    """The merge wave: one commander that receives ALL five results together.
+
+    Kept as a separate graph on purpose. agent_rocketride handles each object
+    arriving on its input lane as its own unit of work, so wiring five specialist
+    `answers` lanes into one agent runs it five times and the last answer wins
+    rather than producing a synthesis. Passing the five results in a single
+    payload guarantees the commander sees the whole picture once.
+    """
+    if secrets is None:
+        secrets = {"anthropic": config.ANTHROPIC_API_KEY or None}
+    block = None
+    if findings is not None:
+        block = ("Here are the specialist findings to merge. This is your input data; "
+                 "merge exactly these and do not invent findings:\n"
+                 + json.dumps(findings, default=str))
+    comps = [_source()]
+    comps += _commander([{"lane": "questions", "from": SOURCE_ID}], secrets, block)
+    comps.append(_response(COMMANDER_ID, PLAN_LANE, RESPONSE_ID, "Incident Command Plan"))
+    return {"name": "ResponseGrid (merge wave)",
+            "description": "Incident Commander merges the specialists' findings into one plan.",
+            "version": 1, "source": SOURCE_ID, "components": comps,
+            "viewport": {"x": 0, "y": 0, "zoom": 1}}

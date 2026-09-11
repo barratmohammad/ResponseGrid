@@ -1,6 +1,6 @@
 {
   "name": "ResponseGrid (sequential)",
-  "description": "Sequential emergency incident command: 5 specialists, each with its own Hotdata database, merged by an incident commander.",
+  "description": "Chained variant kept for reference only. NOT the benchmark baseline: an agent fed the previous agent's answers lane does not treat that data as its query and no-ops, so the real baseline runs the single-agent parallel graph once per specialist, serially. See README.",
   "version": 1,
   "source": "incident_feed",
   "components": [
@@ -27,7 +27,7 @@
           "Query hazards for spread_rate_mph/bearing_deg/containment, weather for wind, and zones for who is threatened. Rank by structures_at_risk and spread rate.",
           "Return exactly this JSON shape: {\"active_zones\":[{\"hazard_id\":\"\",\"name\":\"\",\"severity\":\"extreme|high|moderate|low\",\"spread\":\"\",\"threatens\":\"\"}],\"wind\":{\"from_deg\":0,\"gust_mph\":0,\"effect\":\"\"},\"priority_actions\":[{\"action\":\"\",\"why\":\"\",\"hazard_id\":\"\"}],\"zones_to_evacuate_first\":[\"\"],\"cited_ids\":[\"\"],\"confidence\":\"high|medium|low\"}"
         ],
-        "max_waves": 3,
+        "max_waves": 4,
         "agent_rocketride": {
           "profile": "default"
         },
@@ -79,26 +79,15 @@
       "name": "Hotdata hazard",
       "config": {
         "profile": "default",
-        "hotdata": {
-          "apikey": "${HOTDATA_API_KEY}",
-          "workspace_id": "${HOTDATA_WORKSPACE_ID}",
-          "database_id": "${HOTDATA_DB_HAZARD}",
-          "allow_execute": true,
-          "allow_destructive_load": false,
-          "db_description": "Tables in default.main: hazards, weather, zones. All rows are simulated exercise data. Domain: hazard intelligence.",
-          "max_execute_rows": 2000,
-          "job_timeout_secs": 60,
-          "max_attempts": 2
-        },
-        "hotdata.apikey": "${HOTDATA_API_KEY}",
-        "hotdata.workspace_id": "${HOTDATA_WORKSPACE_ID}",
-        "hotdata.database_id": "${HOTDATA_DB_HAZARD}",
-        "hotdata.allow_execute": true,
-        "hotdata.allow_destructive_load": false,
-        "hotdata.db_description": "Tables in default.main: hazards, weather, zones. All rows are simulated exercise data. Domain: hazard intelligence.",
-        "hotdata.max_execute_rows": 2000,
-        "hotdata.job_timeout_secs": 60,
-        "hotdata.max_attempts": 2,
+        "apikey": "${HOTDATA_API_KEY}",
+        "workspace_id": "${HOTDATA_WORKSPACE_ID}",
+        "database_id": "${HOTDATA_DB_HAZARD}",
+        "allow_execute": true,
+        "allow_destructive_load": false,
+        "db_description": "Tables in default.main: hazards, weather, zones. All rows are simulated exercise data. Domain: hazard intelligence.",
+        "max_execute_rows": 2000,
+        "job_timeout_secs": 60,
+        "max_attempts": 2,
         "parameters": {}
       },
       "control": [
@@ -120,7 +109,7 @@
           "Compare current_flow_vph against capacity_vph to find bottlenecks. Note any route that is the ONLY egress for a zone, and which shelters routes can reach.",
           "Return exactly this JSON shape: {\"bottlenecks\":[{\"route_id\":\"\",\"utilization_pct\":0,\"issue\":\"\"}],\"recommended_routes\":[{\"zone_id\":\"\",\"route_id\":\"\",\"to_facility\":\"\",\"note\":\"\"}],\"closures\":[{\"route_id\":\"\",\"reason\":\"\"}],\"single_points_of_failure\":[{\"route_id\":\"\",\"zone_id\":\"\",\"risk\":\"\"}],\"priority_actions\":[{\"action\":\"\",\"why\":\"\"}],\"cited_ids\":[\"\"],\"confidence\":\"high|medium|low\"}"
         ],
-        "max_waves": 3,
+        "max_waves": 4,
         "agent_rocketride": {
           "profile": "default"
         },
@@ -172,26 +161,15 @@
       "name": "Hotdata evacuation",
       "config": {
         "profile": "default",
-        "hotdata": {
-          "apikey": "${HOTDATA_API_KEY}",
-          "workspace_id": "${HOTDATA_WORKSPACE_ID}",
-          "database_id": "${HOTDATA_DB_EVACUATION}",
-          "allow_execute": true,
-          "allow_destructive_load": false,
-          "db_description": "Tables in default.main: routes, zones, weather, facilities. All rows are simulated exercise data. Domain: evacuation and traffic.",
-          "max_execute_rows": 2000,
-          "job_timeout_secs": 60,
-          "max_attempts": 2
-        },
-        "hotdata.apikey": "${HOTDATA_API_KEY}",
-        "hotdata.workspace_id": "${HOTDATA_WORKSPACE_ID}",
-        "hotdata.database_id": "${HOTDATA_DB_EVACUATION}",
-        "hotdata.allow_execute": true,
-        "hotdata.allow_destructive_load": false,
-        "hotdata.db_description": "Tables in default.main: routes, zones, weather, facilities. All rows are simulated exercise data. Domain: evacuation and traffic.",
-        "hotdata.max_execute_rows": 2000,
-        "hotdata.job_timeout_secs": 60,
-        "hotdata.max_attempts": 2,
+        "apikey": "${HOTDATA_API_KEY}",
+        "workspace_id": "${HOTDATA_WORKSPACE_ID}",
+        "database_id": "${HOTDATA_DB_EVACUATION}",
+        "allow_execute": true,
+        "allow_destructive_load": false,
+        "db_description": "Tables in default.main: routes, zones, weather, facilities. All rows are simulated exercise data. Domain: evacuation and traffic.",
+        "max_execute_rows": 2000,
+        "job_timeout_secs": 60,
+        "max_attempts": 2,
         "parameters": {}
       },
       "control": [
@@ -213,7 +191,7 @@
           "Sum available beds and shelter headroom against zones.vulnerable_residents. Flag any facility above 85% occupancy and any care facility needing transport.",
           "Return exactly this JSON shape: {\"hospital_status\":[{\"facility_id\":\"\",\"available\":0,\"concern\":\"\"}],\"shelter_plan\":[{\"facility_id\":\"\",\"available\":0,\"assign_zones\":\"\",\"note\":\"\"}],\"vulnerable_population\":[{\"zone_id\":\"\",\"count\":0,\"need\":\"\"}],\"transport_needs\":[{\"facility_id\":\"\",\"units_needed\":0,\"kind\":\"\"}],\"priority_actions\":[{\"action\":\"\",\"why\":\"\"}],\"cited_ids\":[\"\"],\"confidence\":\"high|medium|low\"}"
         ],
-        "max_waves": 3,
+        "max_waves": 4,
         "agent_rocketride": {
           "profile": "default"
         },
@@ -265,26 +243,15 @@
       "name": "Hotdata medical",
       "config": {
         "profile": "default",
-        "hotdata": {
-          "apikey": "${HOTDATA_API_KEY}",
-          "workspace_id": "${HOTDATA_WORKSPACE_ID}",
-          "database_id": "${HOTDATA_DB_MEDICAL}",
-          "allow_execute": true,
-          "allow_destructive_load": false,
-          "db_description": "Tables in default.main: facilities, zones, resources. All rows are simulated exercise data. Domain: medical and sheltering.",
-          "max_execute_rows": 2000,
-          "job_timeout_secs": 60,
-          "max_attempts": 2
-        },
-        "hotdata.apikey": "${HOTDATA_API_KEY}",
-        "hotdata.workspace_id": "${HOTDATA_WORKSPACE_ID}",
-        "hotdata.database_id": "${HOTDATA_DB_MEDICAL}",
-        "hotdata.allow_execute": true,
-        "hotdata.allow_destructive_load": false,
-        "hotdata.db_description": "Tables in default.main: facilities, zones, resources. All rows are simulated exercise data. Domain: medical and sheltering.",
-        "hotdata.max_execute_rows": 2000,
-        "hotdata.job_timeout_secs": 60,
-        "hotdata.max_attempts": 2,
+        "apikey": "${HOTDATA_API_KEY}",
+        "workspace_id": "${HOTDATA_WORKSPACE_ID}",
+        "database_id": "${HOTDATA_DB_MEDICAL}",
+        "allow_execute": true,
+        "allow_destructive_load": false,
+        "db_description": "Tables in default.main: facilities, zones, resources. All rows are simulated exercise data. Domain: medical and sheltering.",
+        "max_execute_rows": 2000,
+        "job_timeout_secs": 60,
+        "max_attempts": 2,
         "parameters": {}
       },
       "control": [
@@ -306,7 +273,7 @@
           "Follow the depends_on column to find cascading failures. Flag assets on backup power with a short restore_eta_hours, and any facility whose backup_hours is low.",
           "Return exactly this JSON shape: {\"outages\":[{\"asset_id\":\"\",\"status\":\"\",\"customers_affected\":0,\"impact\":\"\"}],\"cascade_risks\":[{\"asset_id\":\"\",\"depends_on\":\"\",\"consequence\":\"\"}],\"restoration_priority\":[{\"asset_id\":\"\",\"rank\":0,\"why\":\"\"}],\"power_needs\":[{\"facility_id\":\"\",\"kw_needed\":0,\"hours_remaining\":0}],\"priority_actions\":[{\"action\":\"\",\"why\":\"\"}],\"cited_ids\":[\"\"],\"confidence\":\"high|medium|low\"}"
         ],
-        "max_waves": 3,
+        "max_waves": 4,
         "agent_rocketride": {
           "profile": "default"
         },
@@ -358,26 +325,15 @@
       "name": "Hotdata infrastructure",
       "config": {
         "profile": "default",
-        "hotdata": {
-          "apikey": "${HOTDATA_API_KEY}",
-          "workspace_id": "${HOTDATA_WORKSPACE_ID}",
-          "database_id": "${HOTDATA_DB_INFRASTRUCTURE}",
-          "allow_execute": true,
-          "allow_destructive_load": false,
-          "db_description": "Tables in default.main: utilities, facilities, zones. All rows are simulated exercise data. Domain: infrastructure and utilities.",
-          "max_execute_rows": 2000,
-          "job_timeout_secs": 60,
-          "max_attempts": 2
-        },
-        "hotdata.apikey": "${HOTDATA_API_KEY}",
-        "hotdata.workspace_id": "${HOTDATA_WORKSPACE_ID}",
-        "hotdata.database_id": "${HOTDATA_DB_INFRASTRUCTURE}",
-        "hotdata.allow_execute": true,
-        "hotdata.allow_destructive_load": false,
-        "hotdata.db_description": "Tables in default.main: utilities, facilities, zones. All rows are simulated exercise data. Domain: infrastructure and utilities.",
-        "hotdata.max_execute_rows": 2000,
-        "hotdata.job_timeout_secs": 60,
-        "hotdata.max_attempts": 2,
+        "apikey": "${HOTDATA_API_KEY}",
+        "workspace_id": "${HOTDATA_WORKSPACE_ID}",
+        "database_id": "${HOTDATA_DB_INFRASTRUCTURE}",
+        "allow_execute": true,
+        "allow_destructive_load": false,
+        "db_description": "Tables in default.main: utilities, facilities, zones. All rows are simulated exercise data. Domain: infrastructure and utilities.",
+        "max_execute_rows": 2000,
+        "job_timeout_secs": 60,
+        "max_attempts": 2,
         "parameters": {}
       },
       "control": [
@@ -396,10 +352,10 @@
         "instructions": [
           "You are one specialist inside an emergency incident-command system. Your data lives in your OWN database; query it with SQL before answering. Tables are addressed as default.main.<table>. The SQL surface is READ-ONLY. All data is SIMULATED for an exercise. Answer with ONE JSON object and nothing else: no prose, no code fences. Be terse: short strings, no restating the question, at most 5 items per list. Cite the row ids you relied on.",
           "Own crews, vehicles, generators, water, fuel, supplies, resource conflicts and allocation.",
-          "Count available units by kind. Identify any single resource that more than one need requires -- that is a conflict and you must report it explicitly.",
+          "Query default.main.resources first, then default.main.facilities. Count available units by kind. Identify any single resource that more than one need requires -- that is a conflict and you must report it explicitly.",
           "Return exactly this JSON shape: {\"available\":[{\"kind\":\"\",\"count\":0,\"ids\":\"\"}],\"allocations\":[{\"resource_id\":\"\",\"assign_to\":\"\",\"why\":\"\"}],\"conflicts\":[{\"resource_id\":\"\",\"contenders\":\"\",\"recommendation\":\"\"}],\"shortfalls\":[{\"need\":\"\",\"have\":0,\"required\":0}],\"priority_actions\":[{\"action\":\"\",\"why\":\"\"}],\"cited_ids\":[\"\"],\"confidence\":\"high|medium|low\"}"
         ],
-        "max_waves": 3,
+        "max_waves": 4,
         "agent_rocketride": {
           "profile": "default"
         },
@@ -451,93 +407,21 @@
       "name": "Hotdata logistics",
       "config": {
         "profile": "default",
-        "hotdata": {
-          "apikey": "${HOTDATA_API_KEY}",
-          "workspace_id": "${HOTDATA_WORKSPACE_ID}",
-          "database_id": "${HOTDATA_DB_LOGISTICS}",
-          "allow_execute": true,
-          "allow_destructive_load": false,
-          "db_description": "Tables in default.main: resources, hazards, facilities, utilities. All rows are simulated exercise data. Domain: logistics and resources.",
-          "max_execute_rows": 2000,
-          "job_timeout_secs": 60,
-          "max_attempts": 2
-        },
-        "hotdata.apikey": "${HOTDATA_API_KEY}",
-        "hotdata.workspace_id": "${HOTDATA_WORKSPACE_ID}",
-        "hotdata.database_id": "${HOTDATA_DB_LOGISTICS}",
-        "hotdata.allow_execute": true,
-        "hotdata.allow_destructive_load": false,
-        "hotdata.db_description": "Tables in default.main: resources, hazards, facilities, utilities. All rows are simulated exercise data. Domain: logistics and resources.",
-        "hotdata.max_execute_rows": 2000,
-        "hotdata.job_timeout_secs": 60,
-        "hotdata.max_attempts": 2,
+        "apikey": "${HOTDATA_API_KEY}",
+        "workspace_id": "${HOTDATA_WORKSPACE_ID}",
+        "database_id": "${HOTDATA_DB_LOGISTICS}",
+        "allow_execute": true,
+        "allow_destructive_load": false,
+        "db_description": "Tables in default.main: resources, facilities. All rows are simulated exercise data. Domain: logistics and resources.",
+        "max_execute_rows": 2000,
+        "job_timeout_secs": 60,
+        "max_attempts": 2,
         "parameters": {}
       },
       "control": [
         {
           "classType": "tool",
           "from": "logistics"
-        }
-      ]
-    },
-    {
-      "id": "incident_commander",
-      "provider": "agent_rocketride",
-      "name": "INCIDENT COMMANDER",
-      "config": {
-        "agent_description": "Merges specialist findings into one incident command plan",
-        "instructions": [
-          "You are the Incident Commander of an emergency response system. You receive JSON findings from five specialists: hazard, evacuation, medical, infrastructure, logistics.",
-          "Merge them into ONE coordinated plan. Your job is coordination, not restating them.",
-          "Find CONFLICTS where two domains need the same scarce resource or recommend opposing actions, and resolve each with an explicit call and a reason.",
-          "Rank immediate actions by life-safety first, then containment, then property.",
-          "If a specialist is missing or unparseable, proceed with the rest and list it in degraded_agents. Never invent findings for a missing specialist.",
-          "All data is SIMULATED for an exercise. Reply with ONE JSON object, no prose, no fences. Be terse: at most 6 immediate_actions, one short sentence each.",
-          "Return exactly: {\"incident_status\":\"critical|severe|elevated|stable\",\"executive_summary\":\"2-3 sentences\",\"immediate_actions\":[{\"rank\":0,\"action\":\"\",\"owner\":\"\",\"why\":\"\"}],\"evacuation_actions\":[\"\"],\"medical_actions\":[\"\"],\"infrastructure_actions\":[\"\"],\"logistics_actions\":[\"\"],\"resource_conflicts\":[{\"resource\":\"\",\"contenders\":\"\",\"resolution\":\"\",\"rationale\":\"\"}],\"critical_dependencies\":[{\"depends_on\":\"\",\"blocks\":\"\"}],\"unresolved_risks\":[\"\"],\"agent_consensus\":\"aligned|minor_conflicts|major_conflicts\"}"
-        ],
-        "max_waves": 1,
-        "agent_rocketride": {
-          "profile": "default"
-        },
-        "parameters": {}
-      },
-      "input": [
-        {
-          "lane": "answers",
-          "from": "logistics"
-        }
-      ]
-    },
-    {
-      "id": "llm_incident_commander",
-      "provider": "llm_anthropic",
-      "name": "Claude (claude-sonnet-4-6)",
-      "config": {
-        "profile": "claude-sonnet-4-6",
-        "claude-sonnet-4-6": {
-          "apikey": "${ANTHROPIC_API_KEY}"
-        },
-        "apikey": "${ANTHROPIC_API_KEY}",
-        "parameters": {}
-      },
-      "control": [
-        {
-          "classType": "llm",
-          "from": "incident_commander"
-        }
-      ]
-    },
-    {
-      "id": "mem_incident_commander",
-      "provider": "memory_internal",
-      "config": {
-        "type": "memory_internal",
-        "parameters": {}
-      },
-      "control": [
-        {
-          "classType": "memory",
-          "from": "incident_commander"
         }
       ]
     },
@@ -613,21 +497,6 @@
         {
           "lane": "answers",
           "from": "logistics"
-        }
-      ]
-    },
-    {
-      "id": "plan_out",
-      "provider": "response",
-      "name": "Incident Command Plan",
-      "config": {
-        "laneName": "plan",
-        "parameters": {}
-      },
-      "input": [
-        {
-          "lane": "answers",
-          "from": "incident_commander"
         }
       ]
     }

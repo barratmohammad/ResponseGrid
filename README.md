@@ -94,6 +94,50 @@ curl -sX POST localhost:8000/api/runs -H 'content-type: application/json' \
 
 ---
 
+## Measured results, and what they are worth
+
+Numbers from real runs on 2026-09-11, local engine, Claude Haiku 4.5 specialists.
+
+| | sequential | parallel |
+|---|---|---|
+| wall clock | **218,952 ms** | **171,783 ms** |
+| Hotdata queries | 42 | 33 |
+| specialists completing | 5/5 | 5/5 |
+
+That is a **1.27x** speedup, n=1 in each mode, on one laptop sharing CPU with the
+engine. Treat it as directional, not a benchmark. The best parallel run observed was
+66,203 ms; parallel run durations varied from 66s to 184s depending on machine load,
+so a defensible figure needs several runs per mode on a quiet machine.
+
+Two measurement traps we hit, recorded here because both produced *flattering* wrong
+answers at first:
+
+1. **The chained `.pipe` is not a valid sequential baseline.** An agent fed the previous
+   agent's `answers` lane does not treat that data as its query, so downstream
+   specialists no-op — measured: 4 of 5 agents ran **zero** queries, and "sequential"
+   came out 2.5x *faster* than parallel because it was barely working. The real baseline
+   runs the same single-agent graph once per specialist, serially. `responsegrid_sequential.pipe`
+   is kept for reference and is explicitly not what the benchmark uses.
+2. **Per-agent durations are not trustworthy.** Engine flow events mark node
+   initialisation, not the start of an agent's work, so derived per-agent spans come out
+   near-identical within a run. `/api/telemetry/bottleneck` therefore ranks on query
+   volume, zero-query runs, retries and failures — all measured directly — and says so
+   in its response.
+
+**Token and cost telemetry is unavailable**, not estimated. The local engine did not
+populate `TASK_STATUS.tokens.custom` with `llm_input_tokens`/`llm_output_tokens` on
+these runs, so those columns are 0 and `/api/telemetry/summary` reports
+`token_accounting: "unavailable"` rather than inventing a figure.
+
+### What telemetry actually changed
+
+Across 10 agent-runs, `logistics` had the fewest queries (2.6 avg), the most
+zero-query runs (6) and the most failures (2) — while carrying the widest slice, 4
+tables. It was spending its wave budget discovering tables instead of answering. We
+narrowed it to the 2 tables it reasons over and gave it an explicit "query resources
+first" hint (`CONFIG_VERSION` v2). Compare versions live at
+`/api/telemetry/config-compare`.
+
 ## Verification
 
 ```bash

@@ -35,6 +35,36 @@ def _ms(t0: float) -> int:
     return int((time.perf_counter() - t0) * 1000)
 
 
+def _compact(agent_id: str, res: dict) -> dict:
+    """Squeeze a specialist result down to what the commander needs.
+
+    Raw specialist objects are large and the commander only has to coordinate,
+    not restate. Sending the whole thing both costs tokens on every merge and
+    buries the findings deep enough that the model stops reading them -- which
+    showed up as a commander reporting "no findings received" while inventing
+    conflicts that were not in the data.
+    """
+    if not isinstance(res, dict):
+        return {"agent": agent_id, "findings": str(res)[:400]}
+    keep = ("priority_actions", "conflicts", "bottlenecks", "shortfalls",
+            "cascade_risks", "power_needs", "transport_needs", "outages",
+            "single_points_of_failure", "closures", "recommended_routes",
+            "shelter_plan", "hospital_status", "restoration_priority",
+            "available", "allocations", "active_zones", "wind",
+            "zones_to_evacuate_first", "vulnerable_population")
+
+    def trim(v, depth=0):
+        if isinstance(v, list):
+            return [trim(x, depth + 1) for x in v[:4]]
+        if isinstance(v, dict):
+            return {k: trim(x, depth + 1) for k, x in list(v.items())[:8]}
+        return (v[:220] if isinstance(v, str) else v)
+
+    out = {k: trim(v) for k, v in res.items() if k in keep and v}
+    out["confidence"] = res.get("confidence", "medium")
+    return {"agent": agent_id, **out}
+
+
 class Orchestrator:
     def __init__(self):
         self.hd = HotdataClient()
@@ -118,9 +148,10 @@ class Orchestrator:
 
     # ---------------------------------------------------------------- pipeline
     async def _execute(self, run_id: str, mode: str, agent_ids: list[str],
-                       db_ids: dict[str, str], brief: dict) -> dict:
-        """Run the graph on the engine and translate its events into our stream."""
-        pipe = pipes.build(mode, db_ids, agent_ids=agent_ids)
+                       db_ids: dict[str, str], brief: dict,
+                       pipe: dict | None = None) -> dict:
+        """Run a graph on the engine and translate its events into our stream."""
+        pipe = pipe if pipe is not None else pipes.build(mode, db_ids, agent_ids=agent_ids)
         spans: dict[str, dict] = {a: {} for a in agent_ids}
         started_flag: dict[str, bool] = {}
         flow_events: list[dict] = []
@@ -164,9 +195,12 @@ class Orchestrator:
             await client.set_events(token, ["TASK", "SUMMARY", "FLOW", "OUTPUT", "SSE"])
             # In parallel mode every specialist reads the source, so one send fans out.
             timeout = config.AGENT_TIMEOUT_S * (len(agent_ids) + 1 if mode == "sequential" else 2)
+            # MIME decides the lane: application/json lands on the `json` lane, which
+            # no agent listens to. The question MIME routes to `questions`, which is
+            # what agent_rocketride consumes.
             result = await asyncio.wait_for(
                 client.send(token, json.dumps(brief), objinfo={"name": "incident_brief.json"},
-                            mimetype="application/json"),
+                            mimetype="application/rocketride-question+json"),
                 timeout=timeout)
             pipeline_ms = _ms(t_pipe)
             status = await client.get_task_status(token)
@@ -241,7 +275,29 @@ class Orchestrator:
             BUS.emit(run_id, "merge_started", "Specialists dispatched; commander awaiting fan-in",
                      payload={"mode": mode})
 
-            exec_out = await self._execute(run_id, mode, ids, db_ids, brief)
+            if mode == "sequential":
+                # A chained graph is NOT a valid baseline: an agent fed the previous
+                # agent's `answers` lane receives nothing it treats as a query, so
+                # downstream specialists no-op (measured: 4 of 5 ran zero queries).
+                # The honest baseline is the SAME single-agent work, one at a time.
+                result, per_agent, pipeline_ms = {}, {}, 0
+                t_seq = time.perf_counter()
+                for aid in ids:
+                    t_a = time.perf_counter()
+                    one = await self._execute(
+                        run_id, "parallel", [aid], {aid: db_ids[aid]}, brief,
+                        pipe=pipes.build("parallel", {aid: db_ids[aid]}, agent_ids=[aid]))
+                    result.update(one.get("result") or {})
+                    per_agent[aid] = _ms(t_a)
+                    BUS.emit(run_id, "metric_updated",
+                             f"{AGENTS[aid].label} finished in {per_agent[aid]} ms (serial)",
+                             agent_id=aid, payload={"duration_ms": per_agent[aid],
+                                                    "execution_mode": "sequential"})
+                pipeline_ms = _ms(t_seq)
+                exec_out = {"result": result, "pipeline_ms": pipeline_ms, "status": {},
+                            "per_agent_ms": per_agent, "flow_event_count": 0, "pipe": None}
+            else:
+                exec_out = await self._execute(run_id, mode, ids, db_ids, brief)
             result = exec_out["result"]
 
             # ---- validate each specialist from its own sink
@@ -262,7 +318,30 @@ class Orchestrator:
                                       "confidence": obj.confidence,
                                       "result": obj.model_dump()})
 
-            # ---- the merged plan
+            # ---- the merge wave: a second RocketRide graph that receives all
+            # five results in one payload (see pipes.build_merge for why).
+            t_merge = time.perf_counter()
+            merge_brief = {
+                "scenario": scen.SCENARIO_META["name"],
+                "situation": scen.SCENARIO_META["summary"],
+                "disclaimer": scen.SCENARIO_META["disclaimer"],
+                "specialist_findings": [_compact(a, r) for a, r in agent_results.items()],
+                "missing_specialists": degraded,
+                "instruction": ("Merge these specialist findings into ONE incident command "
+                                "plan in your specified JSON shape. Resolve every conflict "
+                                "where two domains need the same scarce resource."),
+            }
+            BUS.emit(run_id, "merge_started",
+                     f"Incident Commander merging {len(agent_results)} specialist result(s)",
+                     payload={"received": list(agent_results), "missing": degraded})
+            merge_out = await self._execute(
+                run_id, "merge", [], {}, merge_brief,
+                pipe=pipes.build_merge(findings=merge_brief["specialist_findings"]))
+            merge_ms = _ms(t_merge)
+            result = {**result, **(merge_out.get("result") or {})}
+            exec_out["merge_ms"] = merge_ms
+            exec_out["status"] = merge_out.get("status") or exec_out.get("status")
+
             plan_obj, why = validate_plan(result.get(pipes.PLAN_LANE))
             if plan_obj is None:
                 err = f"commander output unusable: {why}"
@@ -320,7 +399,7 @@ class Orchestrator:
             "run_id": run_id, "parent_run_id": parent_run_id, "scenario": scenario_id,
             "execution_mode": mode, "config_version": config.CONFIG_VERSION,
             "started_at": started_at, "ended_at": _now(), "duration_ms": duration_ms,
-            "merge_duration_ms": 0, "model_calls": model_calls,
+            "merge_duration_ms": exec_out.get("merge_ms", 0), "model_calls": model_calls,
             "input_tokens": tok_in, "output_tokens": tok_out,
             "est_cost_usd": config.estimate_cost(config.SPECIALIST_PROFILE, tok_in, tok_out),
             "agents_ok": len(ok_agents), "agents_failed": len(degraded),
@@ -332,6 +411,7 @@ class Orchestrator:
         rec = RUNS[run_id]
         rec.update({"status": status, "ended_at": _now(), "duration_ms": duration_ms,
                     "pipeline_ms": exec_out.get("pipeline_ms"),
+                    "merge_ms": exec_out.get("merge_ms"),
                     "per_agent_ms": exec_out.get("per_agent_ms", {}),
                     "agent_results": agent_results, "degraded_agents": degraded,
                     "plan": plan, "error": err,

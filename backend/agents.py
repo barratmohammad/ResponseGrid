@@ -105,11 +105,12 @@ _add(Agent(
 
 _add(Agent(
     id="logistics", label="LOGISTICS + RESOURCES", domain="logistics and resources",
-    tables=("resources", "hazards", "facilities", "utilities"),
+    tables=("resources", "facilities"),
     instructions=(
         "Own crews, vehicles, generators, water, fuel, supplies, resource conflicts "
         "and allocation.",
-        "Count available units by kind. Identify any single resource that more than one "
+        "Query default.main.resources first, then default.main.facilities. Count "
+        "available units by kind. Identify any single resource that more than one "
         "need requires -- that is a conflict and you must report it explicitly.",
     ),
     schema_hint=('{"available":[{"kind":"","count":0,"ids":""}],'

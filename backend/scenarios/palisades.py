@@ -221,12 +221,16 @@ def slice_for(agent_id: str, overrides: dict | None = None) -> dict[str, list[di
         "evacuation":    ["routes", "zones", "weather", "facilities"],
         "medical":       ["facilities", "zones", "resources"],
         "infrastructure":["utilities", "facilities", "zones"],
-        "logistics":     ["resources", "hazards", "facilities", "utilities"],
+        # v2: telemetry showed logistics was the critical path in 4 of 5 runs with
+        # the FEWEST queries (2.2 avg) and the most failures -- it was spending its
+        # wave budget discovering four tables instead of answering. Narrowed to the
+        # two it actually reasons over; hazard/utility context now arrives as the
+        # commander's problem, not its own. See /api/telemetry/config-compare.
+        "logistics":     ["resources", "facilities"],
     }[agent_id]
     out = {name: _tag(t[name]) for name in sel}
     if agent_id == "evacuation":
         out["facilities"] = [r for r in out["facilities"] if r["kind"] in ("shelter", "care_facility", "school")]
     if agent_id == "logistics":
         out["facilities"] = [r for r in out["facilities"] if r["kind"] in ("hospital", "shelter")]
-        out["utilities"] = [r for r in out["utilities"] if r["kind"] in ("power", "water")]
     return out

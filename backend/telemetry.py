@@ -37,6 +37,27 @@ AGENT_QUERIES_COLS = ["run_id", "agent", "seq", "database_id", "sql_text", "sql_
 
 TABLE_COLS = {"runs": RUNS_COLS, "agent_runs": AGENT_RUNS_COLS, "agent_queries": AGENT_QUERIES_COLS}
 
+# Types must be declared on EVERY load, not just the seed. Without them Hotdata
+# re-infers, reads an ISO string as timestamp_ms, and refuses the append with
+# 409 "can't change type from varchar to timestamp_ms".
+_TS = "VARCHAR"
+COLTYPES: dict[str, dict[str, str]] = {
+    "runs": {c: ("DOUBLE" if c == "est_cost_usd"
+                 else "BIGINT" if c in ("duration_ms", "merge_duration_ms", "model_calls",
+                                        "input_tokens", "output_tokens", "agents_ok", "agents_failed")
+                 else _TS if c in ("started_at", "ended_at") else "VARCHAR")
+             for c in RUNS_COLS},
+    "agent_runs": {c: ("DOUBLE" if c == "est_cost_usd"
+                       else "BIGINT" if c in ("duration_ms", "model_calls", "waves", "input_tokens",
+                                              "output_tokens", "query_count", "query_ms_total", "retries")
+                       else _TS if c in ("started_at", "ended_at") else "VARCHAR")
+                   for c in AGENT_RUNS_COLS},
+    "agent_queries": {c: ("BIGINT" if c in ("seq", "execution_time_ms", "server_processing_ms",
+                                            "bytes_scanned", "rows_scanned", "rows_returned", "ok")
+                          else "VARCHAR")
+                      for c in AGENT_QUERIES_COLS},
+}
+
 TELEMETRY_SCHEMAS = [{
     "name": SCHEMA,
     "tables": [
@@ -99,7 +120,7 @@ class TelemetryStore:
             try:
                 r = await self.hd.load_rows(
                     self.database_id, table, rows, schema=SCHEMA, mode="append",
-                    columns=None,
+                    columns=COLTYPES[table],
                     idempotency_key=f"{table}-{int(time.time()*1000)}-{len(rows)}")
                 out["tables"][table] = {"sent": len(rows), "table_total": r.get("row_count")}
                 self._buf[table] = []
@@ -114,7 +135,14 @@ class TelemetryStore:
             return []
         return await self.hd.query_dicts(self.database_id, sql)
 
-    async def summary(self) -> dict:
+    async def summary(self, config_version: str | None = None) -> dict:
+        """Scoped to one config_version by default.
+
+        Mixing versions would average in the v1 sequential runs, whose chained
+        graph left 4 of 5 agents doing zero queries -- a measurement bug, not a
+        slower baseline. Comparing across versions is what config_compare() is for.
+        """
+        cv = config_version or config.CONFIG_VERSION
         mode = await self.q(f"""
             SELECT execution_mode,
                    count(*)                        AS runs,
@@ -123,7 +151,7 @@ class TelemetryStore:
                    round(avg(est_cost_usd), 5)     AS avg_cost_usd,
                    round(avg(model_calls), 1)      AS avg_model_calls
             FROM {SCHEMA}.runs
-            WHERE status = 'complete'
+            WHERE status = 'complete' AND config_version = '{cv}'
             GROUP BY 1 ORDER BY 1""")
         by = {r["execution_mode"]: r for r in mode}
         par, seq = by.get("parallel"), by.get("sequential")
@@ -134,9 +162,21 @@ class TelemetryStore:
             SELECT count(*) AS total_runs, sum(model_calls) AS model_calls,
                    sum(input_tokens) AS input_tokens, sum(output_tokens) AS output_tokens,
                    round(sum(est_cost_usd), 4) AS total_cost_usd
-            FROM {SCHEMA}.runs""")
-        return {"by_mode": mode, "measured_speedup": speedup,
-                "totals": totals[0] if totals else {}}
+            FROM {SCHEMA}.runs WHERE config_version = '{cv}'""")
+        t0 = totals[0] if totals else {}
+        return {"config_version": cv, "by_mode": mode,
+                "measured_speedup": speedup, "totals": t0,
+                "token_accounting": (
+                    "unavailable" if not (t0.get("input_tokens") or 0) else "measured"),
+                "token_note": (
+                    "The local engine did not populate TASK_STATUS.tokens.custom with "
+                    "llm_input_tokens/llm_output_tokens for these runs, so token and "
+                    "dollar figures are reported as 0 rather than estimated. Durations "
+                    "and query metrics are measured."),
+                "timing_note": (
+                    "duration_ms is wall-clock measured per run. Per-agent spans are "
+                    "derived from engine flow events, which mark node initialisation, "
+                    "so they are not a reliable per-agent breakdown -- see bottleneck().")}
 
     async def agents(self) -> list[dict]:
         return await self.q(f"""
@@ -152,18 +192,28 @@ class TelemetryStore:
             GROUP BY 1, 2 ORDER BY avg_ms DESC""")
 
     async def bottleneck(self) -> list[dict]:
-        """Which agent is the critical path, and how often -- across every parallel run."""
+        """Which agent is the weak link, ranked on signals we can actually trust.
+
+        Deliberately NOT ranked on duration_ms. The engine's flow events mark node
+        initialisation rather than the start of an agent's work, so every agent in a
+        run ends up with near-identical derived spans -- ranking on that would be
+        ranking on noise. Query volume, retries and failures are measured directly
+        (query counts come from Hotdata's own query-run history, snapshotted before
+        each task database is destroyed), so those are what we rank on.
+        """
         return await self.q(f"""
-            WITH ranked AS (
-              SELECT run_id, agent, duration_ms,
-                     row_number() OVER (PARTITION BY run_id ORDER BY duration_ms DESC) AS rk
-              FROM {SCHEMA}.agent_runs WHERE execution_mode = 'parallel'
-            )
             SELECT agent,
-                   count(*)                AS times_critical_path,
-                   round(avg(duration_ms)) AS avg_ms_when_critical
-            FROM ranked WHERE rk = 1
-            GROUP BY 1 ORDER BY times_critical_path DESC""")
+                   count(*)                        AS runs,
+                   round(avg(query_count), 2)      AS avg_queries,
+                   min(query_count)                AS min_queries,
+                   sum(CASE WHEN query_count = 0 THEN 1 ELSE 0 END) AS runs_with_no_queries,
+                   sum(CASE WHEN status <> 'ok' THEN 1 ELSE 0 END)  AS failures,
+                   sum(retries)                    AS retries,
+                   round(avg(query_ms_total))      AS avg_query_ms
+            FROM {SCHEMA}.agent_runs
+            WHERE agent <> 'seed'
+            GROUP BY 1
+            ORDER BY failures DESC, runs_with_no_queries DESC, avg_queries ASC""")
 
     async def query_profile(self) -> list[dict]:
         return await self.q(f"""

@@ -21,11 +21,11 @@ TELEMETRY_CONNECTION_ID = os.getenv("TELEMETRY_CONNECTION_ID", "")
 TELEMETRY_SCHEMA = "main"
 
 # Bumped by hand when we change agent config, so telemetry can compare before/after.
-CONFIG_VERSION = os.getenv("CONFIG_VERSION", "v1")
+CONFIG_VERSION = os.getenv("CONFIG_VERSION", "v3")
 
 SPECIALIST_PROFILE = os.getenv("SPECIALIST_PROFILE", "claude-haiku-4-5")
 COMMANDER_PROFILE = os.getenv("COMMANDER_PROFILE", "claude-sonnet-4-6")
-MAX_WAVES = int(os.getenv("MAX_WAVES", "3"))
+MAX_WAVES = int(os.getenv("MAX_WAVES", "4"))
 ENGINE_THREADS = int(os.getenv("ENGINE_THREADS", "16"))
 AGENT_TIMEOUT_S = float(os.getenv("AGENT_TIMEOUT_S", "90"))
 

@@ -51,28 +51,7 @@ SEED = {
                       "rows_returned": 0, "ok": 1},
 }
 
-# Declaring types explicitly stops a numeric column being inferred as text when
-# an early batch happens to be all-null.
-COLTYPES = {
-    "runs": {"run_id": "VARCHAR", "parent_run_id": "VARCHAR", "scenario": "VARCHAR",
-             "execution_mode": "VARCHAR", "config_version": "VARCHAR", "started_at": "VARCHAR",
-             "ended_at": "VARCHAR", "duration_ms": "BIGINT", "merge_duration_ms": "BIGINT",
-             "model_calls": "BIGINT", "input_tokens": "BIGINT", "output_tokens": "BIGINT",
-             "est_cost_usd": "DOUBLE", "agents_ok": "BIGINT", "agents_failed": "BIGINT",
-             "injected_event": "VARCHAR", "status": "VARCHAR", "notes": "VARCHAR"},
-    "agent_runs": {"run_id": "VARCHAR", "agent": "VARCHAR", "execution_mode": "VARCHAR",
-                   "config_version": "VARCHAR", "started_at": "VARCHAR", "ended_at": "VARCHAR",
-                   "duration_ms": "BIGINT", "model": "VARCHAR", "model_calls": "BIGINT",
-                   "waves": "BIGINT", "input_tokens": "BIGINT", "output_tokens": "BIGINT",
-                   "est_cost_usd": "DOUBLE", "hotdata_db_id": "VARCHAR", "query_count": "BIGINT",
-                   "query_ms_total": "BIGINT", "retries": "BIGINT", "status": "VARCHAR",
-                   "note": "VARCHAR"},
-    "agent_queries": {"run_id": "VARCHAR", "agent": "VARCHAR", "seq": "BIGINT",
-                      "database_id": "VARCHAR", "sql_text": "VARCHAR", "sql_hash": "VARCHAR",
-                      "execution_time_ms": "BIGINT", "server_processing_ms": "BIGINT",
-                      "bytes_scanned": "BIGINT", "rows_scanned": "BIGINT",
-                      "rows_returned": "BIGINT", "ok": "BIGINT"},
-}
+COLTYPES = T.COLTYPES
 
 
 async def main() -> int:

@@ -235,7 +235,12 @@ async def tel_queries():
 
 @app.get("/api/telemetry/bottleneck")
 async def tel_bottleneck():
-    return {"bottleneck": await orch().tel.bottleneck()}
+    return {"bottleneck": await orch().tel.bottleneck(),
+            "ranked_on": ["failures", "runs_with_no_queries", "avg_queries"],
+            "note": ("Not ranked on duration: engine flow events mark node "
+                     "initialisation, so derived per-agent spans are near-identical "
+                     "within a run and would rank on noise. Query counts come from "
+                     "Hotdata's query-run history and are measured.")}
 
 
 @app.get("/api/telemetry/config-compare")

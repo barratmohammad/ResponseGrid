@@ -50,10 +50,19 @@ Open the plan and go **straight to `resource_conflicts`** — this is the substa
 
 ### 1:50 — Measured, not claimed (20s)
 
-Show the big metric.
+Show the big metric. **Say the real number and its limits — do not oversell it.**
 
-> "Parallel against sequential, both measured on real runs — nothing hard-coded. And it isn't just
-> faster: it's the same work with the wall clock collapsed onto the critical path."
+> "Sequential: 219 seconds. Parallel: 172. Same five agents, same data, same prompts — 1.27x.
+> That's one run each on a laptop that's also hosting the engine, so treat it as directional.
+> Our best parallel run was 66 seconds."
+
+If a judge pushes on it, that's a good thing — tell them what we found:
+
+> "Our first baseline was wrong in our favour. We chained the agents in one graph, and it
+> came out *faster* than parallel. Turned out a chained agent doesn't treat the previous
+> agent's lane output as its query, so four of five were doing no work at all — zero
+> queries. We caught it in the telemetry, threw the number away, and rebuilt the baseline
+> as the same single-agent work run serially."
 
 ### 2:10 — Telemetry (25s)
 
