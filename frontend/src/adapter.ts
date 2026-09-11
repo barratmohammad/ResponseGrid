@@ -1,6 +1,7 @@
 import { type IncidentEvent, type Mode, specialists } from "./state";
-export const isMock =
-  import.meta.env?.DEV && import.meta.env?.VITE_USE_MOCK_DATA === "true";
+// Set VITE_USE_MOCK_DATA=true only where no FastAPI backend is reachable (the hosted
+// demo). `npm run dev` and `npm run preview` are unaffected unless the var is passed.
+export const isMock = import.meta.env?.VITE_USE_MOCK_DATA === "true";
 export type Injection = {
   event_type: string;
   target: string;
@@ -284,7 +285,7 @@ function mockStream(
           run_id: id,
           seq: ++seq,
           event_type: "run_completed",
-          message: "Development preview complete — not a measured backend run",
+          message: "Simulated run complete — not a measured backend run",
           payload: {
             duration_s: (Date.now() - begin) / 1000,
             parent_run_id: run.parent,
