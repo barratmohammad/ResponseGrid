@@ -1,0 +1,13 @@
+.env
+.cache/
+__pycache__/
+*.pyc
+.venv/
+venv/
+telemetry_buffer.jsonl
+.DS_Store
+
+# Vendored RocketRide runtimes (1.5GB, downloaded by scripts/get_engine.sh)
+engine/
+engine2/
+node_modules/
