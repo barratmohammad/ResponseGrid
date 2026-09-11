@@ -62,3 +62,11 @@ Fire station markers and legends now use a shared generic Maltese-cross fire-ser
 All 88 mapped electrical line segments now have a prominent purple stroke and white halo, visible by default. Power network opens an electrical legend and regional-network view. Green polygons represent simulated powered areas; dark polygons represent staged exercise outages. A Santa Monica powered area remains visible after the three outages activate. Actual line energization is unknown and inventory coverage is incomplete; the inspector explicitly distinguishes mapped geometry from simulated states.
 
 Validation: 19 tests pass; production build passes after the final powered-area addition. Browser inspection confirms fire-service badges, purple lines, green power area and the electrical inspector render on localhost.
+
+## App entry and demo workspace
+
+`Platform.tsx` now owns the entry routes: `/` marketing landing, `/product` capabilities and readiness, `/signin` local demo session, `/home` demo workspace and three-step walkthrough, `/command` existing command center. Unknown paths render a recovery page. Native links support history and direct Vite entry; production hosting must rewrite these paths to index.html. `platform.css` scopes the new responsive visual system away from command center styles. The command center has workspace navigation and local session exit.
+
+Demo sign-in stores a display name in sessionStorage, never credentials. Guest access remains available. This is not production authentication, an authorization boundary or a real account system. Production identity-provider integration and backend session authorization remain future work. The product readiness section explains current integration boundaries. New pages use vector terrain artwork with no additional network assets. Build and all 19 existing tests pass.
+
+Sign-in simplified per user request: one-click “Sign in to demo,” optional display name, default “Demo operator.” No real account required. Command center code now loads lazily, reducing the landing entry JavaScript bundle to approximately 247 kB before gzip. Final production build passes.

@@ -1,416 +1,107 @@
-import { useState } from "react";
-import {
-  Layers,
-  Minus,
-  Plus,
-  Navigation,
-  LocateFixed,
-  Flame,
-  Route,
-  Hospital,
-  RadioTower,
-} from "lucide-react";
-import type { State } from "./state";
-const streets = Array.from({ length: 22 }, (_, i) => {
-  const y = 280 + i * 12;
-  return (
-    <path
-      key={i}
-      d={`M ${350 - i * 7} ${y} L ${590 + i * 4} ${y - 85} L 880 ${y + 10}`}
-    />
-  );
-});
-const cross = Array.from({ length: 25 }, (_, i) => (
-  <path key={i} d={`M ${280 + i * 24} 220 L ${380 + i * 19} 560`} />
-));
-const contour = Array.from({ length: 16 }, (_, i) => (
-  <path
-    key={i}
-    d={`M ${-90 + i * 7} ${160 + i * 12} C 160 ${-80 + i * 12},180 ${270 + i * 9},320 ${100 + i * 14} S 530 ${120 + i * 8},620 ${10 + i * 11} S 840 ${60 + i * 15},1020 ${-60 + i * 15}`}
-  />
-));
-export function IncidentMap({ state }: { state: State }) {
-  const [zoom, setZoom] = useState(1);
-  const [layerMenu, setLayerMenu] = useState(false);
-  const [layers, setLayers] = useState({
-    hazards: true,
-    routes: true,
-    facilities: true,
-  });
-  const active = state.status !== "idle";
-  const blocked = state.condition?.type === "road_blocked";
-  const rerouted =
-    blocked && !!state.previousPlan && state.plan !== state.previousPlan;
-  const wind =
-    state.condition?.type === "wind_shift" ||
-    state.condition?.type === "new_hazard_zone";
-  return (
-    <section className="map-panel" aria-label="Incident map">
-      <div className="map-heading">
-        <div>
-          <span className="eyebrow">LIVE OPERATING PICTURE</span>
-          <h2>
-            Pacific Palisades <span>/ CA</span>
-          </h2>
-        </div>
-        <span className="map-sim">SIMULATED GEOGRAPHY</span>
-      </div>
-      <svg
-        className="map-svg"
-        viewBox="0 0 1000 650"
-        role="img"
-        aria-label={`Schematic Pacific Palisades wildfire map${blocked ? ", Pacific Coast Highway blocked" : ""}`}
-      >
-        <defs>
-          <pattern
-            id="grid"
-            width="40"
-            height="40"
-            patternUnits="userSpaceOnUse"
-          >
-            <path
-              d="M 40 0 H 0 V 40"
-              fill="none"
-              stroke="#819299"
-              strokeWidth=".5"
-              opacity=".12"
-            />
-          </pattern>
-          <pattern
-            id="hatch"
-            width="7"
-            height="7"
-            patternUnits="userSpaceOnUse"
-            patternTransform="rotate(35)"
-          >
-            <line
-              x1="0"
-              y1="0"
-              x2="0"
-              y2="7"
-              stroke="#e7ab5f"
-              strokeWidth="1"
-              opacity=".2"
-            />
-          </pattern>
-          <radialGradient id="fire">
-            <stop stopColor="#f4713f" stopOpacity=".5" />
-            <stop offset="1" stopColor="#c13f29" stopOpacity=".1" />
-          </radialGradient>
-          <filter id="glow">
-            <feGaussianBlur stdDeviation="8" />
-          </filter>
-          <linearGradient id="ocean" x2="1" y2="1">
-            <stop stopColor="#0c2029" />
-            <stop offset="1" stopColor="#101921" />
-          </linearGradient>
-        </defs>
-        <rect width="1000" height="650" fill="#141e24" />
-        <g
-          transform={`translate(${500 - 500 * zoom} ${325 - 325 * zoom}) scale(${zoom})`}
-        >
-          <g
-            className="contours"
-            fill="none"
-            stroke="#748d84"
-            strokeWidth="1"
-            opacity=".14"
-          >
-            {contour}
-          </g>
-          <g stroke="#718287" strokeWidth="1" opacity=".15" fill="none">
-            {streets}
-            {cross}
-          </g>
-          <path
-            d="M0 330 Q120 355 218 440 Q300 502 420 515 Q550 530 620 598 L690 650 H0Z"
-            fill="url(#ocean)"
-          />
-          <path
-            d="M0 330 Q120 355 218 440 Q300 502 420 515 Q550 530 620 598 L690 650"
-            fill="none"
-            stroke="#47606b"
-            strokeWidth="2"
-          />
-          <path
-            d="M0 350 Q120 375 208 452 Q295 518 419 533 Q545 548 606 610 L650 650"
-            fill="none"
-            stroke="#2b434e"
-            strokeWidth="1"
-          />
-          <rect width="1000" height="650" fill="url(#grid)" />
-          <g className="road-base" fill="none" strokeLinecap="round">
-            <path d="M40 337 Q160 356 240 429 T420 493 Q510 501 578 554 T700 630" />
-            <path d="M230 426 L330 375 L430 395 L512 363 L603 399 L718 347 L940 412" />
-            <path d="M432 395 L395 314 L448 226 L480 155" />
-            <path d="M600 398 L589 301 L660 218 L674 85" />
-            <path d="M720 350 L770 245 L850 166" />
-          </g>
-          {layers.hazards && (
-            <g className={active ? "hazard active" : "hazard"}>
-              <path
-                d="M210 157 L300 136 L366 172 L438 161 L493 229 L480 319 L412 360 L318 338 L243 289Z"
-                fill="url(#hatch)"
-                stroke="#b18a50"
-                strokeWidth="1"
-                strokeDasharray="5 5"
-              />
-              <path
-                className="fire-glow"
-                d="M235 173 L284 157 L318 177 L354 168 L382 199 L419 187 L459 235 L435 259 L449 289 L398 302 L367 323 L322 300 L289 309 L275 263 L237 245 L252 215Z"
-                fill="#e65d37"
-                filter="url(#glow)"
-                opacity=".23"
-              />
-              <path
-                className="fire-shape"
-                d={
-                  wind
-                    ? "M235 173 L284 157 L318 177 L354 168 L382 199 L440 177 L496 227 L525 286 L489 336 L419 352 L367 323 L322 300 L289 309 L275 263 L237 245 L252 215Z"
-                    : "M235 173 L284 157 L318 177 L354 168 L382 199 L419 187 L459 235 L435 259 L449 289 L398 302 L367 323 L322 300 L289 309 L275 263 L237 245 L252 215Z"
-                }
-                fill="url(#fire)"
-                stroke="#ef7951"
-                strokeWidth="2"
-              />
-              <path
-                d="M288 197 L330 209 L353 199 L391 225 L413 252 L369 281 L319 263 L301 237Z"
-                fill="#e3643e"
-                opacity=".13"
-                stroke="#f0794d"
-                strokeWidth=".8"
-              />
-              <circle cx="350" cy="238" r="4" fill="#ff9c73" />
-              <text x="350" y="225" textAnchor="middle" className="hot-label">
-                ACTIVE FIRE PERIMETER
-              </text>
-              <text x="349" y="347" textAnchor="middle" className="zone-label">
-                ZONE-A / B · EVACUATION
-              </text>
-            </g>
-          )}
-          {layers.routes && (
-            <g fill="none" strokeLinecap="round">
-              <path
-                d="M40 337 Q160 356 240 429 T420 493 Q510 501 578 554 T700 630"
-                stroke={blocked ? "#f37960" : "#d7aa63"}
-                strokeWidth="3"
-                className={blocked ? "blocked-route" : ""}
-              />
-              <path
-                id="evacRoute"
-                d={
-                  rerouted
-                    ? "M330 375 L430 395 L512 363 L603 399 L718 347 L770 245"
-                    : "M430 395 L512 363 L603 399 L718 347 L940 412"
-                }
-                stroke="#62bbc6"
-                strokeWidth="3"
-                className={active ? "flow-route" : ""}
-              />
-              {active && (
-                <circle r="4" fill="#b8f4f4">
-                  <animateMotion dur="6s" repeatCount="indefinite">
-                    <mpath href="#evacRoute" />
-                  </animateMotion>
-                </circle>
-              )}
-              <path
-                d="M600 398 L589 301 L660 218"
-                stroke="#6e9eac"
-                strokeWidth="2"
-                strokeDasharray="5 8"
-              />
-            </g>
-          )}
-          <g className="map-place">
-            <text x="525" y="464">
-              PACIFIC PALISADES
-            </text>
-            <text x="760" y="288">
-              BRENTWOOD
-            </text>
-            <text x="759" y="545">
-              SANTA MONICA
-            </text>
-            <text x="91" y="275">
-              TOPANGA
-            </text>
-            <text x="510" y="142" className="terrain-label">
-              SANTA MONICA MOUNTAINS
-            </text>
-            <text
-              x="187"
-              y="568"
-              className="ocean-label"
-              transform="rotate(16 187 568)"
-            >
-              PACIFIC OCEAN
-            </text>
-          </g>
-          <g className="road-label">
-            <text x="307" y="456" transform="rotate(21 307 456)">
-              PACIFIC COAST HWY
-            </text>
-            <text x="660" y="377" transform="rotate(-23 660 377)">
-              SUNSET BLVD
-            </text>
-            <text x="601" y="281" transform="rotate(-53 601 281)">
-              MANDEVILLE
-            </text>
-          </g>
-          {layers.facilities && (
-            <g className="facilities">
-              <g transform="translate(743 430)">
-                <rect x="-14" y="-14" width="28" height="28" rx="5" />
-                <path d="M-6 0 H6 M0 -6 V6" />
-                <text x="23" y="0">
-                  ST. JOHN’S
-                </text>
-                <text x="23" y="15" className="facility-sub">
-                  MEDICAL CENTER
-                </text>
-              </g>
-              <g transform="translate(547 335)">
-                <rect x="-13" y="-13" width="26" height="26" rx="5" />
-                <path d="M-7 2 L0 -5 L7 2 M-5 0 V7 H5 V0" />
-                <text x="22" y="-1">
-                  WESTSIDE REC CENTER
-                </text>
-              </g>
-              <g transform="translate(839 371)">
-                <rect x="-12" y="-12" width="24" height="24" rx="5" />
-                <path d="M-6 2 L0 -4 L6 2 M-4 0 V6 H4 V0" />
-                <text x="19" y="-2">
-                  SANTA MONICA COLLEGE
-                </text>
-              </g>
-              <g transform="translate(454 364)">
-                <rect x="-11" y="-11" width="22" height="22" rx="4" />
-                <path d="M-5 0 H5 M0 -5 V5" />
-                <text x="17" y="3">
-                  STAGING 01
-                </text>
-              </g>
-            </g>
-          )}
-          {blocked && (
-            <g className="map-impact" transform="translate(270 450)">
-              <circle r="27" fill="#e06a4f" opacity=".12" />
-              <circle r="16" fill="#30201e" stroke="#f1846d" />
-              <path
-                d="M-5 -5 L5 5 M-5 5 L5 -5"
-                stroke="#f1846d"
-                strokeWidth="2"
-              />
-              <text
-                x="-4"
-                y="-38"
-                textAnchor="middle"
-                fill="#ffab94"
-                fontSize="12"
-              >
-                ROAD CLOSED
-              </text>
-            </g>
-          )}
-          {state.condition && !blocked && (
-            <g
-              className="map-impact"
-              transform={`translate(${wind ? "450 270" : state.condition.type === "hospital_power_loss" ? "743 430" : state.condition.type === "infrastructure_failure" ? "600 300" : "547 335"})`}
-            >
-              <circle
-                r="33"
-                fill="none"
-                stroke="#e8ac68"
-                strokeDasharray="4 4"
-              />
-              <circle r="42" fill="#e8ac68" opacity=".08" />
-            </g>
-          )}
-        </g>
-      </svg>
-      <div className="map-compass">
-        <Navigation size={20} />
-        <span>N</span>
-      </div>
-      <div className="map-tools">
-        <button
-          aria-label="Zoom in"
-          onClick={() => setZoom((z) => Math.min(1.6, z + 0.2))}
-        >
-          <Plus size={16} />
-        </button>
-        <button
-          aria-label="Zoom out"
-          onClick={() => setZoom((z) => Math.max(0.8, z - 0.2))}
-        >
-          <Minus size={16} />
-        </button>
-        <button aria-label="Reset map view" onClick={() => setZoom(1)}>
-          <LocateFixed size={16} />
-        </button>
-        <button
-          aria-label="Map layers"
-          aria-expanded={layerMenu}
-          onClick={() => setLayerMenu(!layerMenu)}
-        >
-          <Layers size={16} />
-        </button>
-      </div>
-      {layerMenu && (
-        <div className="layer-menu">
-          {(Object.keys(layers) as (keyof typeof layers)[]).map((k) => (
-            <label key={k}>
-              <input
-                type="checkbox"
-                checked={layers[k]}
-                onChange={() => setLayers((l) => ({ ...l, [k]: !l[k] }))}
-              />
-              {k}
-            </label>
-          ))}
-        </div>
-      )}
-      <div className="map-legend">
-        <span>
-          <i className="key-fire" />
-          Hazard
-        </span>
-        <span>
-          <i className="key-route" />
-          Evacuation
-        </span>
-        <span>
-          <i className="key-congested" />
-          Congested
-        </span>
-        <span>
-          <Hospital size={11} />
-          Care / shelter
-        </span>
-      </div>
-      <div className="map-coordinate">
-        34.0454° N · 118.5265° W <b>SCHEMATIC / NOT FOR NAVIGATION</b>
-      </div>
-      <div className="map-scale">
-        <span />1 km <small>APPROX.</small>
-      </div>
-      {state.condition && (
-        <div
-          className="condition-banner"
-          key={`${state.runId}-${state.condition.type}`}
-        >
-          <RadioTower size={15} />
-          <div>
-            <span>NEW INCIDENT CONDITION</span>
-            <strong>
-              {state.condition.target} ·{" "}
-              {state.condition.type.replaceAll("_", " ")}
-            </strong>
-          </div>
-        </div>
-      )}
-    </section>
-  );
+import { memo, useEffect, useRef, useState } from 'react';
+import { Map as LibreMap, setWorkerUrl, NavigationControl, ScaleControl, AttributionControl, Marker, Popup, type GeoJSONSource, type StyleSpecification } from 'maplibre-gl';
+import 'maplibre-gl/dist/maplibre-gl.css';
+import mapWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
+setWorkerUrl(mapWorkerUrl);
+import { Mountain, LocateFixed, Layers, X, RadioTower, Maximize, Minimize, Hospital, Zap } from 'lucide-react';
+import { FireBadge, fireBadgeSVG } from './FireBadge';
+import { MapSimulation } from './MapSimulation';
+import {  zones, type ZoneId } from './operations';
+import type { State } from './state';
+import type { FeatureCollection, Feature } from 'geojson';
+
+const HOME = { center: [-118.537, 34.066] as [number,number], zoom: 12.2, pitch: 0, bearing: 0 };
+const INCIDENT_BOUNDS: [[number, number], [number, number]] = [[-118.635, 34.0], [-118.425, 34.14]];
+const USGS = 'https://basemap.nationalmap.gov/arcgis/rest/services';
+const EMPTY: FeatureCollection = { type:'FeatureCollection', features:[] };
+const style: StyleSpecification = {
+  version:8,
+  glyphs:"https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
+  sources: {
+    topographic: {type:'raster',tiles:[`${USGS}/USGSTopo/MapServer/tile/{z}/{y}/{x}`],tileSize:256,maxzoom:16,attribution:'<a href="https://www.usgs.gov/programs/national-geospatial-program/national-map">USGS The National Map</a>'},
+    satellite: {type:'raster',tiles:[`${USGS}/USGSImageryTopo/MapServer/tile/{z}/{y}/{x}`],tileSize:256,maxzoom:16,attribution:'USGS · The National Map imagery'},
+    elevation: {type:'raster-dem',tiles:['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],encoding:'terrarium',tileSize:256,maxzoom:15,attribution:'<a href="https://github.com/tilezen/joerd/blob/master/docs/attribution.md">Terrain: Mapzen / USGS / NASA</a>'},
+    incident:{type:'geojson',data:EMPTY}, infrastructure:{type:'geojson',data:EMPTY,attribution:'© OpenStreetMap contributors'}, operations:{type:'geojson',data:EMPTY}, blackouts:{type:'geojson',data:EMPTY}, grid:{type:'geojson',data:EMPTY},
+  },
+  layers:[
+    {id:'topographic',type:'raster',source:'topographic',paint:{'raster-fade-duration':200}},
+    {id:'satellite',type:'raster',source:'satellite',layout:{visibility:'none'},paint:{'raster-fade-duration':200}},
+    {id:'hillshade',type:'hillshade',source:'elevation',paint:{'hillshade-exaggeration':.22,'hillshade-shadow-color':'#43473b','hillshade-highlight-color':'#ffffff'}},
+    {id:'road-inventory',type:'line',source:'infrastructure',filter:['==',['get','kind'],'road'],paint:{'line-color':'#607586','line-width':2,'line-opacity':.55}},
+    {id:'power-halo',type:'line',source:'infrastructure',filter:['==',['get','kind'],'power'],paint:{'line-color':'#ffffff','line-width':7,'line-opacity':.8}},
+    {id:'power-inventory',type:'line',source:'infrastructure',filter:['==',['get','kind'],'power'],paint:{'line-color':'#a653cf','line-width':['interpolate',['linear'],['zoom'],10,2.5,14,4.5],'line-opacity':1}},
+    {id:'grid-fill',type:'fill',source:'grid',paint:{'fill-color':'#42ae83','fill-opacity':.13}},
+    {id:'grid-edge',type:'line',source:'grid',paint:{'line-color':'#279570','line-width':1.5}},
+    {id:'grid-label',type:'symbol',source:'grid',layout:{'text-field':['get','name'],'text-font':['Noto Sans Regular'],'text-size':11},paint:{'text-color':'#196746','text-halo-color':'#ffffff','text-halo-width':2}},
+    {id:'blackout-fill',type:'fill',source:'blackouts',paint:{'fill-color':'#26384d','fill-opacity':.29}},
+    {id:'blackout-edge',type:'line',source:'blackouts',paint:{'line-color':'#58718c','line-width':2,'line-dasharray':[2,2]}},
+    {id:'blackout-label',type:'symbol',source:'blackouts',layout:{'text-field':['get','name'],'text-font':['Noto Sans Regular'],'text-size':12},paint:{'text-color':'#fff','text-halo-color':'#27394e','text-halo-width':2}},
+    {id:'ops-routes',type:'line',source:'operations',filter:['in',['get','kind'],['literal',['egress','responder']]],paint:{'line-color':['case',['==',['get','kind'],'responder'],'#ef784b',['==',['get','status'],'held'],'#d73b26','#078e9c'],'line-width':2.5,'line-opacity':.38}},
+    {id:'ops-labels',type:'symbol',source:'operations',filter:['in',['get','kind'],['literal',['egress','responder']]],layout:{'symbol-placement':'line','text-field':['get','name'],'text-font':['Noto Sans Regular'],'text-size':12,'text-offset':[0,-1]},paint:{'text-color':'#193d56','text-halo-color':'#ffffff','text-halo-width':2}},
+    {id:'evacuation-fill',type:'fill',source:'incident',filter:['==',['get','kind'],'evacuation'],paint:{'fill-color':'#e4ac32','fill-opacity':.13}},
+    {id:'evacuation-line',type:'line',source:'incident',filter:['==',['get','kind'],'evacuation'],paint:{'line-color':'#956315','line-width':2,'line-dasharray':[3,2]}},
+    {id:'fire-fill',type:'fill',source:'incident',filter:['==',['get','kind'],'fire'],paint:{'fill-color':'#ec623f','fill-opacity':.13}},
+    {id:'fire-edge',type:'line',source:'incident',filter:['==',['get','kind'],'fire'],paint:{'line-color':'#c33f25','line-width':3}},
+    {id:'closure',type:'circle',source:'incident',filter:['==',['get','kind'],'closure'],paint:{'circle-radius':11,'circle-color':'#bd3928','circle-stroke-color':'#fff','circle-stroke-width':3}},
+    {id:'impact',type:'circle',source:'incident',filter:['==',['get','kind'],'impact'],paint:{'circle-radius':26,'circle-color':'#ee9c30','circle-opacity':.3,'circle-stroke-color':'#b05c16','circle-stroke-width':2}},
+  ]
+};
+function incidentData(kind?:string,elapsed=0):FeatureCollection{
+ const expanded=kind==='wind_shift'||kind==='new_hazard_zone';
+ const fire=[[-118.565,34.097],[-118.551,34.101],[-118.541,34.094],[-118.525,34.091],[-118.518,34.078],[-118.529,34.066],[-118.547,34.065],[-118.56,34.076],[-118.565,34.097]];
+ if(expanded){fire[4]=[-118.504,34.079];fire[5]=[-118.512,34.060]}
+ const growth=Math.min(elapsed/180,1)*.12;for(const p of fire){p[0]=-118.547+(p[0]+118.547)*(1+growth)+growth*.012;p[1]=34.083+(p[1]-34.083)*(1+growth)}
+ const evacuation=[[-118.576,34.102],[-118.539,34.11],[-118.503,34.091],[-118.499,34.055],[-118.533,34.045],[-118.57,34.065],[-118.576,34.102]];
+ const features:Feature[]=[{type:'Feature',properties:{kind:'fire'},geometry:{type:'Polygon',coordinates:[fire]}},{type:'Feature',properties:{kind:'evacuation'},geometry:{type:'Polygon',coordinates:[evacuation]}}];
+ if(kind==='road_blocked')features.push({type:'Feature',properties:{kind:'closure'},geometry:{type:'Point',coordinates:[-118.5356,34.0348]}});
+ if(kind&&kind!=='road_blocked')features.push({type:'Feature',properties:{kind:'impact'},geometry:{type:'Point',coordinates:kind==='hospital_power_loss'?[-118.4795,34.0307]:kind==='shelter_full'?[-118.503,34.041]:[-118.53,34.078]}});
+ return {type:'FeatureCollection',features};
 }
+export const IncidentMap=memo(function IncidentMap({state,zone,setZone,onNotified}:{state:State;zone:ZoneId;setZone:(zone:ZoneId)=>void;onNotified:(n:number)=>void}){
+ const [powerFocus,setPowerFocus]=useState(false);
+ const [facilityView,setFacilityView]=useState<'hospital'|'fire_station'|null>(null);const [facilities,setFacilities]=useState<{id:string;name:string;kind:string;coordinates:[number,number]}[]>([]);
+ const [hazardTime,setHazardTime]=useState(0);
+ const [inventoryError,setInventoryError]=useState('');const [inventoryCount,setInventoryCount]=useState('Loading infrastructure…');const [visibility,setVisibility]=useState({hospital:true,fire_station:true,power:true,road:false});const inventoryMarkers=useRef<{marker:Marker;kind:string;id:string}[]>([]);const zoneMarkers=useRef<Marker[]>([]);const closureMarkers=useRef<Marker[]>([]);
+ const panel=useRef<HTMLElement>(null);const [full,setFull]=useState(false);
+ const container=useRef<HTMLDivElement>(null);const map=useRef<LibreMap|null>(null);const [loaded,setLoaded]=useState(false);const [error,setError]=useState('');const [basemap,setBasemap]=useState<'topographic'|'satellite'>('topographic');const [terrain,setTerrain]=useState(false);const [layersOpen,setLayersOpen]=useState(false);const [overlays,setOverlays]=useState(true);const [attempt,setAttempt]=useState(0);const [elevation,setElevation]=useState<number|null>(null);const markers=useRef<Marker[]>([]);
+ useEffect(()=>{
+  if(!container.current)return;
+  setLoaded(false);setError('');let disposed=false;let m:LibreMap;
+  try{m=new LibreMap({container:container.current,style,...HOME,bounds:INCIDENT_BOUNDS,fitBoundsOptions:{padding:35},minZoom:7,maxZoom:17,attributionControl:false,renderWorldCopies:false});map.current=m;}catch{setError('The interactive map could not start. Enable browser graphics acceleration, then retry.');return}
+  m.addControl(new NavigationControl({visualizePitch:true}),'top-right');m.addControl(new ScaleControl({maxWidth:130,unit:'imperial'}),'bottom-left');m.addControl(new AttributionControl({compact:true}),'bottom-right');
+  m.on('style.load',()=>{if(disposed)return;setLoaded(true);setError('');
+   const places:[string,[number,number],string][]=[['Fire perimeter',[-118.547,34.084],'fire']];
+   places.forEach(([name,lnglat,type])=>{const el=document.createElement('button');el.className=`geo-marker ${type}`;el.type='button';el.textContent=type==='hospital'?'+':type==='shelter'?'S':'Fire perimeter';el.setAttribute('aria-label',`${name} — simulation overlay`);const content=document.createElement('div');const heading=document.createElement('strong');heading.textContent=name;const detail=document.createElement('p');detail.textContent='Simulation overlay. Approximate incident location; not a live emergency feed.';content.append(heading,detail);markers.current.push(new Marker({element:el}).setLngLat(lnglat).setPopup(new Popup({offset:20}).setDOMContent(content)).addTo(m))});
+  });
+  m.once('style.load',()=>{
+   fetch('/data/infrastructure.json').then(r=>{if(!r.ok)throw Error();return r.json()}).then(d=>{if(disposed)return;(m.getSource('infrastructure') as GeoJSONSource).setData(d.geojson);setFacilities(d.assets.filter((a:any)=>a.kind!=='power'));setInventoryCount(`${d.assets.filter((a:any)=>a.kind==='hospital').length} hospitals · ${d.assets.filter((a:any)=>a.kind==='fire_station').length} fire-service features · mapped coverage`);
+    d.assets.filter((a:any)=>a.kind!=='power').forEach((a:any)=>{const el=document.createElement('button');el.className=`geo-marker ${a.kind==='hospital'?'facility':'station'}`;el.innerHTML=a.kind==='hospital'?'<svg viewBox="0 0 24 24"><path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6z"/></svg>':fireBadgeSVG;el.setAttribute('aria-label',`${a.name} — operational status unknown`);el.title=a.name;const tag=document.createElement('span');tag.className='facility-name';tag.textContent=a.name.replace('Los Angeles Fire Department Fire Station','Station').replace('Los Angeles County Fire Department','County Fire').replace('Providence Saint John’s Health Center',"Saint John's");el.append(tag);const content=document.createElement('div');const heading=document.createElement('strong');heading.textContent=a.name;const detail=document.createElement('p');detail.textContent='OpenStreetMap inventory. Capacity, power and dispatch status unknown.';content.append(heading,detail);const marker=new Marker({element:el}).setLngLat(a.coordinates).setPopup(new Popup({offset:18}).setDOMContent(content)).addTo(m);inventoryMarkers.current.push({marker,kind:a.kind,id:a.id})});
+   }).catch(()=>{if(!disposed)setInventoryError('Infrastructure inventory unavailable')});
+   zones.forEach(z=>{const el=document.createElement('button');el.className='geo-marker zone';el.textContent=`ZONE ${z.id}`;el.setAttribute('aria-label',`Select exercise Zone ${z.id}: ${z.name}`);el.onclick=()=>setZone(z.id);zoneMarkers.current.push(new Marker({element:el}).setLngLat(z.center as [number,number]).addTo(m))});
+  });
+  m.on('error',e=>{if(disposed)return;const source=(e as unknown as {sourceId?:string}).sourceId;if(source==='elevation')return;setError('Some map tiles are unavailable. Check your connection or try the other basemap.');});
+  m.on('idle',()=>{if(!disposed&&m.areTilesLoaded())setError('')});
+  m.on('mousemove',e=>{const height=m.queryTerrainElevation(e.lngLat);setElevation(height==null?null:Math.round(height*3.28084))});
+  const refreshClosures=async()=>{try{const r=await fetch('/ops-api/closures');if(!r.ok)return;const d=await r.json();if(disposed)return;closureMarkers.current.forEach(marker=>marker.remove());closureMarkers.current=[];const seen=new Set<string>();d.items.filter((c:any)=>c.status!=='Reported ended').forEach((c:any)=>{const key=c.coordinates.join(',');if(seen.has(key))return;seen.add(key);const el=document.createElement('button');el.className=`geo-marker closure-marker ${c.status==='Reported active'?'active':''}`;el.textContent='!';el.setAttribute('aria-label',`Caltrans ${c.road} ${c.status}: ${c.location}`);const content=document.createElement('div');const title=document.createElement('strong');title.textContent=`Caltrans · ${c.road} ${c.direction}`;const detail=document.createElement('p');detail.textContent=`${c.status}: ${c.type} closure, ${c.work}. ${c.location}. Scheduled ${c.start} to ${c.end}. Source updated ${c.updated}. Other road conditions remain unknown.`;content.append(title,detail);closureMarkers.current.push(new Marker({element:el}).setLngLat(c.coordinates).setPopup(new Popup({offset:16}).setDOMContent(content)).addTo(m))})}catch{/* Provider status is shown in the Sources panel. */}};
+  refreshClosures();const closureTimer=setInterval(refreshClosures,60000);
+  const observer=new ResizeObserver(()=>m.resize());observer.observe(container.current);
+  return()=>{disposed=true;clearInterval(closureTimer);closureMarkers.current.forEach(marker=>marker.remove());closureMarkers.current=[];observer.disconnect();inventoryMarkers.current.forEach(({marker})=>marker.remove());inventoryMarkers.current=[];zoneMarkers.current.forEach(marker=>marker.remove());zoneMarkers.current=[];markers.current.forEach(marker=>marker.remove());markers.current=[];m.remove();map.current=null};
+ },[attempt]);
+ useEffect(()=>{if(!loaded||!map.current)return;(map.current.getSource('incident') as GeoJSONSource).setData(incidentData(state.condition?.type,hazardTime))},[loaded,state.condition?.type,hazardTime]);
+ useEffect(()=>{if(!loaded||!map.current)return;const m=map.current;m.setLayoutProperty('topographic','visibility',basemap==='topographic'?'visible':'none');m.setLayoutProperty('satellite','visibility',basemap==='satellite'?'visible':'none');},[loaded,basemap]);
+ useEffect(()=>{if(!loaded||!map.current)return;const m=map.current;m.setTerrain(terrain?{source:'elevation',exaggeration:1.35}:null);m.easeTo({pitch:terrain?58:0,bearing:terrain?-15:0,duration:700});},[loaded,terrain]);
+ useEffect(()=>{if(!loaded||!map.current)return;['fire-fill','fire-edge','evacuation-fill','evacuation-line','closure','impact','ops-routes','ops-labels','blackout-fill','blackout-edge','blackout-label'].forEach(id=>map.current!.setLayoutProperty(id,'visibility',overlays?'visible':'none'));[...markers.current,...zoneMarkers.current].forEach(marker=>{marker.getElement().style.display=overlays?'':'none'});},[loaded,overlays]);
+ useEffect(()=>{if(!loaded||!map.current)return;zoneMarkers.current.forEach((m,i)=>m.getElement().classList.toggle('active',zones[i].id===zone));},[loaded,zone,state.condition?.type]);
+ useEffect(()=>{if(!loaded||!map.current)return;['power-inventory','power-halo','grid-fill','grid-edge','grid-label'].forEach(id=>map.current!.setLayoutProperty(id,'visibility',visibility.power?'visible':'none'));map.current.setLayoutProperty('road-inventory','visibility',visibility.road?'visible':'none');inventoryMarkers.current.forEach(({marker,kind})=>marker.getElement().style.display=visibility[kind as keyof typeof visibility]?'':'none');},[loaded,visibility,inventoryCount]);
+ useEffect(()=>{const change=()=>setFull(document.fullscreenElement===panel.current);const key=(e:KeyboardEvent)=>{if(e.key==='Escape')setFull(false)};document.addEventListener('fullscreenchange',change);document.addEventListener('keydown',key);return()=>{document.removeEventListener('fullscreenchange',change);document.removeEventListener('keydown',key)}},[]);
+ const toggleFull=async()=>{if(full){if(document.fullscreenElement)await document.exitFullscreen();setFull(false)}else{setFull(true);try{await panel.current?.requestFullscreen()}catch{/* Expanded viewport fallback. */}}};
+ return <section ref={panel} className={`map-panel ${full?'expanded-map':''}`} aria-label="Pacific Palisades topographic map">
+  <div className="map-toolbar"><div className="basemap-tabs" aria-label="Basemap"><button className={basemap==='topographic'?'selected':''} aria-pressed={basemap==='topographic'} onClick={()=>setBasemap('topographic')}>Topographic</button><button className={basemap==='satellite'?'selected':''} aria-pressed={basemap==='satellite'} onClick={()=>setBasemap('satellite')}>Satellite</button></div><div className="map-actions"><button onClick={toggleFull} aria-label={full?"Exit full-screen map":"Full-screen map"}>{full?<Minimize size={18}/>:<Maximize size={18}/>}<span>{full?"Exit full screen":"Full screen"}</span></button><button aria-pressed={terrain} className={terrain?'selected':''} onClick={()=>setTerrain(!terrain)}><Mountain size={17}/>3D terrain</button><button aria-label="Fit incident area" onClick={()=>{setTerrain(false);map.current?.fitBounds(INCIDENT_BOUNDS,{padding:35,pitch:0,bearing:0,duration:600})}}><LocateFixed size={18}/></button><button aria-label="Map layers" aria-expanded={layersOpen} onClick={()=>setLayersOpen(!layersOpen)}><Layers size={18}/></button></div></div>
+  <div className="real-map" ref={container}/><div className="coverage-note" title={inventoryCount}>{inventoryError||"EXERCISE · Real streets / simulated movement"}</div><div className="facility-controls"><button className={facilityView==='hospital'?'selected':''} onClick={()=>{setVisibility(v=>({...v,hospital:true}));setFacilityView(facilityView==='hospital'?null:'hospital')}}><Hospital size={17}/>Hospitals <b>{facilities.filter(f=>f.kind==='hospital').length}</b></button><button className={facilityView==='fire_station'?'selected':''} onClick={()=>{setVisibility(v=>({...v,fire_station:true}));setFacilityView(facilityView==='fire_station'?null:'fire_station')}}><FireBadge size={20}/>Fire stations <b>{facilities.filter(f=>f.kind==='fire_station').length}</b></button><button className={powerFocus?"selected":""} onClick={()=>{setPowerFocus(!powerFocus);setVisibility(v=>({...v,power:true}));setFacilityView(null)}}><Zap size={17}/>Power network</button></div>{powerFocus&&<div className="power-directory"><strong><Zap size={18}/>Electrical network</strong><p><i className="power-swatch"/>88 mapped line segments · purple</p><p><i className="powered-swatch"/>Green areas: simulated power on</p><p><i className="blackout-swatch"/>Dark areas: simulated blackout</p><small>Mapped coverage is incomplete. Actual line energization is unknown; area power states are exercise data.</small><button onClick={()=>map.current?.fitBounds(INCIDENT_BOUNDS,{padding:60,pitch:0,bearing:0,duration:700})}>Show regional network</button></div>}{facilityView&&<div className="facility-directory"><div><strong>{facilityView==='hospital'?'Hospitals & medical sites':'Fire stations & service sites'}</strong><button aria-label="Close facility directory" onClick={()=>setFacilityView(null)}><X size={15}/></button></div><small>Mapped coverage · select a site to locate it. Service sites include helispots. Operating status unknown.</small><button className="show-all-facilities" onClick={()=>map.current?.fitBounds(INCIDENT_BOUNDS,{padding:60,pitch:0,bearing:0,duration:700})}>Show all on map</button>{facilities.filter(f=>f.kind===facilityView).map(f=><button className="facility-list-item" key={f.id} onClick={()=>{inventoryMarkers.current.forEach(({marker})=>{if(marker.getPopup()?.isOpen())marker.togglePopup()});map.current?.flyTo({center:f.coordinates,zoom:14.2,duration:800});inventoryMarkers.current.find(m=>m.id===f.id)?.marker.togglePopup()}}>{facilityView==='hospital'?<Hospital size={18}/>:<FireBadge size={20}/>}<span>{f.name}</span><span>↗</span></button>)}</div>}{loaded&&map.current&&<MapSimulation map={map.current} condition={state.condition?.type} visible={overlays} zone={zone} onZone={setZone} onNotified={onNotified} onElapsed={setHazardTime}/>}
+  {!loaded&&!error&&<div className="map-loading"><Mountain size={24}/><strong>Loading topographic map</strong><span>Pacific Palisades · USGS</span></div>}
+  {error&&<div className="map-error" role="status"><span>{error}</span><button onClick={()=>setAttempt(n=>n+1)}>Retry map</button></div>}
+  {layersOpen&&<div className="map-layer-menu"><div><strong>Map layers</strong><button aria-label="Close layers" onClick={()=>setLayersOpen(false)}><X size={16}/></button></div><label><input type="checkbox" checked={overlays} onChange={e=>setOverlays(e.target.checked)}/>Simulated incident overlays</label>{(['hospital','fire_station','power','road'] as const).map(k=><label key={k}><input type="checkbox" checked={visibility[k]} onChange={e=>setVisibility(v=>({...v,[k]:e.target.checked}))}/>{{hospital:'Hospitals',fire_station:'Fire stations',power:'Power lines · state unknown',road:'Road network · state unknown'}[k]}</label>)}<p>Roads, contours, and place names are included in the USGS basemap.</p></div>}
+  {state.condition&&<div className="map-condition"><RadioTower size={18}/><div><strong>{state.condition.type.replaceAll('_',' ')}</strong><span>{state.condition.target}</span></div></div>}
+  <div className="map-legend"><span><Hospital size={14}/>Hospital</span><span><FireBadge size={17}/>Fire station</span><span><i className="legend-fire"/>Fire perimeter</span><span><i className="legend-evac"/>Evacuation zone</span><span><i className="legend-power"/>Power lines</span><span><i style={{background:"#42ae83"}}/>Power on · demo</span><span><i style={{background:"#34495f"}}/>Blackout · demo</span><span><i className="legend-closure"/>Caltrans record</span><span><i className="legend-egress"/>Demo egress</span><span><i className="legend-responder"/>Demo engines</span><span className="map-data-note">Real geography · Simulated incident</span>{terrain&&elevation!==null&&<span>{elevation.toLocaleString()} ft</span>}</div>
+ </section>
+});

@@ -1,0 +1,3 @@
+// Generic fire-service Maltese-cross badge; not a specific agency seal.
+export const fireBadgeSVG='<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M10 2h20l-3 10 11-3v22l-11-3 3 10H10l3-10-11 3V9l11 3z" fill="#a93932" stroke="#e9bf74" stroke-width="2"/><circle cx="20" cy="20" r="10" fill="#fff6e1" stroke="#e9bf74" stroke-width="1.5"/><path d="M15 24V14h10v10m-7 0v-5h4v5m-6-7h8" fill="none" stroke="#903f35" stroke-width="1.8"/><path d="M11 5h18M11 35h18" stroke="#f8d499" stroke-width="1.5"/></svg>';
+export function FireBadge({size=18}:{size?:number}){return <span className="fire-badge" style={{width:size,height:size,display:'inline-flex',flexShrink:0}} dangerouslySetInnerHTML={{__html:fireBadgeSVG}}/>}

@@ -32,6 +32,8 @@ import {
   specialists,
   type State,
 } from "./state";
+import { ControlTower } from "./ControlTower";
+import type { ZoneId } from "./operations";
 import { IncidentMap } from "./IncidentMap";
 import type { Injection } from "./adapter";
 const icons = [Flame, Route, HeartPulse, Zap, Truck];
@@ -46,8 +48,8 @@ function AgentGrid({ state, now }: { state: State; now: number }) {
   return (
     <aside className="agents-panel">
       <div className="section-heading">
-        <span>SPECIALIST NETWORK</span>
-        <span className="count">05</span>
+        <span>Specialist agents</span>
+        <span className="count">{state.mode === "parallel" ? "Working in parallel" : "Sequential baseline"}</span>
       </div>
       <div
         className={`architecture ${state.status === "running" ? "executing" : ""} ${state.status === "merging" ? "merging" : ""}`}
@@ -79,7 +81,7 @@ function AgentGrid({ state, now }: { state: State; now: number }) {
                 <span className="agent-icon">
                   <Icon size={16} />
                 </span>
-                <h3>{specialists[i].name}</h3>
+                <h3 title={specialists[i].name}>{["Hazard", "Evacuation", "Medical", "Utilities", "Logistics"][i]}</h3>
                 <span className="agent-index">0{i + 1}</span>
               </div>
               <div className="agent-readout">
@@ -153,7 +155,7 @@ function CommandPanel({ state }: { state: State }) {
           <p>
             {state.plan
               ? "Specialist findings, unified."
-              : "Five perspectives. One plan."}
+              : "Findings from all five specialists."}
           </p>
         </div>
       </div>
@@ -173,17 +175,17 @@ function CommandPanel({ state }: { state: State }) {
             {state.status === "merging"
               ? "Merging specialist recommendations"
               : state.status === "idle"
-                ? "Ready when it matters."
+                ? "Ready to respond"
                 : "Building the operating picture."}
           </h3>
           <p>
             {state.status === "idle"
-              ? "Initiate a response to deploy the specialist network."
+              ? "Start a response to analyze the fire, evacuation routes, care, utilities, and resources."
               : "Recommendations arrive here as the specialists converge."}
           </p>
           <span className="empty-tag">
             {state.agents.filter((a) => a.status === "COMPLETE").length} / 5
-            SPECIALISTS READY
+            specialists ready
           </span>
         </div>
       ) : (
@@ -586,7 +588,10 @@ function Telemetry({
 export default function App() {
   const { state, link, busy, start, inject, reset, retry, isMock } =
     useIncident();
+  const [motionNotified, setMotionNotified] = useState(0);
+  const [zone, setZone] = useState<ZoneId>("A");
   const [modal, setModal] = useState(false);
+  const [details, setDetails] = useState(false);
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 100);
@@ -661,7 +666,7 @@ export default function App() {
             disabled={!canStart}
           >
             <Play size={12} />
-            <span>Run ResponseGrid</span>
+            <span>{state.status === "idle" ? "Start response" : "Run ResponseGrid"}</span>
           </button>
           <button
             className="inject-button"
@@ -689,62 +694,22 @@ export default function App() {
       {isMock && (
         <div className="dev-banner">
           <span />
-          DEVELOPMENT PREVIEW · SYNTHETIC EVENTS & TELEMETRY · NOT A LIVE
-          BACKEND RUN
+          Demo mode — incident conditions and agent activity are simulated.
         </div>
       )}
       <main className="workspace">
+        <div className="map-column"><IncidentMap state={state} zone={zone} setZone={setZone} onNotified={setMotionNotified} /></div>
         <AgentGrid state={state} now={now} />
-        <div className="map-column">
-          <IncidentMap state={state} />
-          {state.status === "idle" && (
-            <div className="opening-card">
-              <span className="opening-kicker">
-                <Radio size={13} /> EMERGENCY SIMULATION READY
-              </span>
-              <h2>
-                One incident.
-                <br />
-                Every perspective.
-              </h2>
-              <p>
-                Deploy five AI specialists.
-                <br />
-                Converge on one coordinated response.
-              </p>
-              <button
-                className="primary"
-                onClick={() => start("parallel")}
-                disabled={busy || link !== "connected"}
-              >
-                {busy ? "Connecting to command…" : "Initiate response"}
-                <ArrowRight size={17} />
-              </button>
-              <button
-                className="baseline-link"
-                disabled={busy || link !== "connected"}
-                onClick={() => start("sequential")}
-              >
-                Run sequential baseline <ArrowRight size={12} />
-              </button>
-            </div>
-          )}
-          <div className="map-bottom">
-            <span>
-              <i className="status-dot" />{" "}
-              {state.status === "idle"
-                ? "SCENARIO LOADED"
-                : "INCIDENT OPERATING PICTURE"}
-            </span>
-            <span>
-              {state.mode === "parallel"
-                ? "PARALLEL INTELLIGENCE"
-                : "SEQUENTIAL BASELINE"}
-            </span>
-          </div>
-        </div>
-        <CommandPanel state={state} />
+        <ControlTower motionNotified={motionNotified} state={state} zone={zone} setZone={setZone} plan={<CommandPanel state={state} />} />
       </main>
+      <div className="overview-strip">
+        <div><span>Agents active</span><strong>{state.agents.filter(a=>running(a.status)).length}<small> / 5</small></strong></div>
+        <div><span>Queries</span><strong>{state.queries}</strong></div>
+        <div><span>Response time</span><strong>{seconds(state.duration)}</strong></div>
+        <div><span>Measured speedup</span><strong>{benchmark(state.history)?.ratio.toFixed(1) ?? "—"}{benchmark(state.history) ? "×" : ""}</strong></div>
+        <button onClick={()=>setDetails(!details)} aria-expanded={details}><Activity size={18}/>{details ? "Hide details" : "Performance & timeline"}<ChevronDown size={16}/></button>
+      </div>
+      {details && <div className="details-drawer">
       <section className="timeline">
         <div className="timeline-label">
           <Radio size={14} />
@@ -784,6 +749,7 @@ export default function App() {
         </div>
       </section>
       <Telemetry state={state} now={now} mock={isMock} />
+      </div>}
       <footer className="footer">
         <span>
           <span className={`status-dot ${link !== "connected" ? "off" : ""}`} />
