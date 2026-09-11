@@ -195,7 +195,9 @@ class TelemetryStore:
     async def search_notes(self, text: str, limit: int = 10) -> list[dict]:
         """Full-text over agent notes via the bm25 index built at bootstrap."""
         safe = text.replace("'", "''")
+        # bm25_search insists on the full three-part catalog.schema.table name,
+        # unlike ordinary queries which resolve against default_schema.
         return await self.q(
             f"SELECT run_id, agent, status, note, score "
-            f"FROM bm25_search('{SCHEMA}.agent_runs', 'note', '{safe}', {int(limit)}) "
+            f"FROM bm25_search('default.{SCHEMA}.agent_runs', 'note', '{safe}', {int(limit)}) "
             f"ORDER BY score DESC")
